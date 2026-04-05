@@ -1,4 +1,4 @@
-# ClipManager — React Native Clipboard Manager
+# Copyboard — React Native Clipboard Manager
 
 A polished, production-ready clipboard manager built with Expo + React Native.
 Save text snippets, tap once to copy, organise with categories.
