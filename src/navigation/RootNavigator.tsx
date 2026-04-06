@@ -63,50 +63,72 @@ export const RootNavigator: React.FC = () => {
     );
   }
 
+  const ProtectedMainScreen = () => (
+    <AuthGate>
+      <MainTabNavigator />
+    </AuthGate>
+  );
+
+  const ProtectedAddSnippetScreen = () => (
+    <AuthGate>
+      <AddSnippetScreen />
+    </AuthGate>
+  );
+
+  const ProtectedPaywallScreen = () => (
+    <AuthGate>
+      <PaywallScreen />
+    </AuthGate>
+  );
+
+  const ProtectedManageCategoriesScreen = () => (
+    <AuthGate>
+      <ManageCategoriesScreen />
+    </AuthGate>
+  );
+
   return (
     <AuthProvider>
       <SnippetsProvider>
-        <AuthGate>
-          <NavigationContainer theme={NAV_THEME}>
-            <Stack.Navigator
-              initialRouteName={initialRoute}
-              screenOptions={{
-                headerStyle: { backgroundColor: '#FFFFFF' },
-                headerTintColor: '#1E1B2E',
-                headerShadowVisible: false,
-                headerTitleStyle: { fontWeight: '700', fontSize: 17, color: '#1E1B2E' },
-                contentStyle: { backgroundColor: '#EDE9F6' },
-                animation: 'slide_from_right',
-              }}
-            >
-              <Stack.Screen
-                name="Onboarding"
-                component={OnboardingScreen}
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="Main"
-                component={MainTabNavigator}
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="AddSnippet"
-                component={AddSnippetScreen}
-                options={{ presentation: 'modal' }}
-              />
-              <Stack.Screen
-                name="Paywall"
-                component={PaywallScreen}
-                options={{ presentation: 'modal', headerShown: false }}
-              />
-              <Stack.Screen
-                name="ManageCategories"
-                component={ManageCategoriesScreen}
-                options={{ title: 'Categories' }}
-              />
-            </Stack.Navigator>
-          </NavigationContainer>
-        </AuthGate>
+        <NavigationContainer theme={NAV_THEME}>
+          <Stack.Navigator
+            initialRouteName={initialRoute}
+            screenOptions={{
+              headerStyle: { backgroundColor: '#FFFFFF' },
+              headerTintColor: '#1E1B2E',
+              headerShadowVisible: false,
+              headerTitleStyle: { fontWeight: '700', fontSize: 17, color: '#1E1B2E' },
+              contentStyle: { backgroundColor: '#EDE9F6' },
+              animation: 'slide_from_right',
+            }}
+          >
+            <Stack.Screen
+              name="Onboarding"
+              component={OnboardingScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Main"
+              component={ProtectedMainScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="AddSnippet"
+              component={ProtectedAddSnippetScreen}
+              options={{ presentation: 'modal' }}
+            />
+            <Stack.Screen
+              name="Paywall"
+              component={ProtectedPaywallScreen}
+              options={{ presentation: 'modal', headerShown: false }}
+            />
+            <Stack.Screen
+              name="ManageCategories"
+              component={ProtectedManageCategoriesScreen}
+              options={{ title: 'Categories' }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
       </SnippetsProvider>
     </AuthProvider>
   );

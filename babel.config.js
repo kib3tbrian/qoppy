@@ -4,8 +4,6 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      // NativeWind must come before Reanimated
-      'nativewind/babel',
       'react-native-reanimated/plugin',
     ],
   };

@@ -146,7 +146,7 @@ export const SettingsScreen: React.FC = () => {
           icon={Star}
           iconColor={COLORS.secondary}
           label="Rate the app"
-          sublabel="Enjoying ClipManager?"
+          sublabel="Enjoying Clipsafe?"
           onPress={() => Linking.openURL('https://apps.apple.com')}
         />
         <Row
@@ -157,7 +157,7 @@ export const SettingsScreen: React.FC = () => {
         />
       </Section>
 
-      <Text style={styles.version}>ClipManager v1.0.0</Text>
+      <Text style={styles.version}>Clipsafe v1.0.0</Text>
     </ScrollView>
   );
 };

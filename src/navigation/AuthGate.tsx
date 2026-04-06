@@ -15,7 +15,7 @@ interface AuthGateProps {
 }
 
 export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
-  const { isAuthenticated, isLoading, needsSetup } = useAuth();
+  const { isAuthenticated, isLoading, isProtectionEnabled, needsSetup } = useAuth();
 
   if (isLoading) {
     return (
@@ -29,7 +29,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
     return <SetupPINScreen />;
   }
 
-  if (!isAuthenticated) {
+  if (isProtectionEnabled && !isAuthenticated) {
     return <LockScreen />;
   }
 

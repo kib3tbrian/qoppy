@@ -128,6 +128,15 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  skip: {
+    marginTop: 16,
+    paddingVertical: 8,
+  },
+  skipText: {
+    fontSize: 15,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
   biometricToggle: {
     flexDirection: 'row',
     alignItems: 'center',

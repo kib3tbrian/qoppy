@@ -80,7 +80,7 @@ export const MainTabNavigator: React.FC = () => (
     <Tab.Screen
       name="Home"
       component={HomeScreen}
-      options={{ title: 'ClipManager', tabBarLabel: 'Home' }}
+      options={{ title: 'Clipsafe', tabBarLabel: 'Home' }}
     />
     <Tab.Screen
       name="Favorites"

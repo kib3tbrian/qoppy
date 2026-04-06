@@ -75,7 +75,7 @@ export const PaywallScreen: React.FC = () => {
       {/* Hero */}
       <View style={styles.hero}>
         <Crown size={44} color="#7C3AED" fill="#7C3AED20" />
-        <Text style={styles.heroTitle}>ClipManager Premium</Text>
+        <Text style={styles.heroTitle}>Clipsafe Premium</Text>
         <Text style={styles.heroSubtitle}>Unlock everything. Copy faster.</Text>
       </View>
 

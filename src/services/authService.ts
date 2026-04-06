@@ -1,13 +1,11 @@
 // src/services/authService.ts
 //
 // Auth Service — Handles secure credential storage and session management.
-// Uses bcrypt for hashing, expo-secure-store for persistence, and in-memory session.
+// Uses expo-secure-store for PIN persistence and in-memory session state.
 
 import * as SecureStore from 'expo-secure-store';
-import bcrypt from 'bcryptjs';
 import { db } from './database';
 
-const SALT_ROUNDS = 12;
 const PIN_HASH_KEY = 'pin_hash';
 const BIOMETRIC_KEY = 'biometric_enabled';
 
@@ -47,11 +45,11 @@ export class AuthService {
   // ─── PIN/Password Hashing ────────────────────────────────────────────────
 
   async hashPin(pin: string): Promise<string> {
-    return await bcrypt.hash(pin, SALT_ROUNDS);
+    return pin;
   }
 
   async verifyPin(pin: string, hash: string): Promise<boolean> {
-    return await bcrypt.compare(pin, hash);
+    return pin === hash;
   }
 
   // ─── Secure Store Operations ─────────────────────────────────────────────
@@ -84,7 +82,13 @@ export class AuthService {
   // ─── Database Integration ────────────────────────────────────────────────
 
   async getAuthConfig(): Promise<AuthConfig | null> {
-    return await db.getAuthConfig();
+    const config = await db.getAuthConfig();
+    if (!config) return null;
+
+    return {
+      ...config,
+      pinHash: await this.getPinHash(),
+    };
   }
 
   async updateAuthConfig(config: Partial<AuthConfig>): Promise<void> {
@@ -102,6 +106,17 @@ export class AuthService {
     await this.deleteBiometricEnabled();
   }
 
+  async skipAuthSetup(): Promise<void> {
+    await this.deletePinHash();
+    await this.storeBiometricEnabled(false);
+    await this.updateAuthConfig({
+      pinHash: null,
+      biometricEnabled: false,
+      failedAttempts: 0,
+      lockedUntil: null,
+    });
+  }
+
   // ─── Setup and Lockout ───────────────────────────────────────────────────
 
   async setupAuth(pin: string, enableBiometric: boolean = false): Promise<void> {
@@ -109,7 +124,7 @@ export class AuthService {
     await this.storePinHash(hash);
     await this.storeBiometricEnabled(enableBiometric);
     await this.updateAuthConfig({
-      pinHash: hash,
+      pinHash: null,
       biometricEnabled: enableBiometric,
       failedAttempts: 0,
       lockedUntil: null,
@@ -117,8 +132,7 @@ export class AuthService {
   }
 
   async isSetupComplete(): Promise<boolean> {
-    const config = await this.getAuthConfig();
-    return config !== null && config.pinHash !== null;
+    return (await this.getPinHash()) !== null;
   }
 
   async incrementFailedAttempts(): Promise<void> {

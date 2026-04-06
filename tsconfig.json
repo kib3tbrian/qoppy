@@ -8,7 +8,8 @@
     "App.tsx",
     "index.js",
     "src/**/*",
-    "*.d.ts"
+    "*.d.ts",
+    "nativewind-env.d.ts"
   ],
   "exclude": [
     "node_modules",

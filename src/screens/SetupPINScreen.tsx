@@ -20,7 +20,7 @@ import { useAuth } from '../hooks/useAuth';
 import { styles } from '../styles';
 
 export const SetupPINScreen: React.FC = () => {
-  const { setupPin, isBiometricAvailable } = useAuth();
+  const { setupPin, skipPinSetup, isBiometricAvailable } = useAuth();
 
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -50,6 +50,12 @@ export const SetupPINScreen: React.FC = () => {
     }
   };
 
+  const handleSkip = async () => {
+    setIsLoading(true);
+    await skipPinSetup();
+    setIsLoading(false);
+  };
+
   return (
     <SafeAreaView style={styles.setupContainer}>
       <KeyboardAvoidingView
@@ -58,7 +64,7 @@ export const SetupPINScreen: React.FC = () => {
       >
         <Text style={styles.setupTitle}>Set Up PIN</Text>
         <Text style={styles.setupSubtitle}>
-          Create a 4-6 digit PIN to secure your snippets
+          Add a 4-6 digit PIN to protect your snippets, or skip for now
         </Text>
 
         <TextInput
@@ -103,6 +109,14 @@ export const SetupPINScreen: React.FC = () => {
           <Text style={styles.setupButtonText}>
             {isLoading ? 'Setting up...' : 'Set Up PIN'}
           </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.skip}
+          onPress={handleSkip}
+          disabled={isLoading}
+        >
+          <Text style={styles.skipText}>Skip for now</Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </SafeAreaView>
