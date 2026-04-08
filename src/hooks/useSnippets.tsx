@@ -12,6 +12,8 @@ import * as Haptics from 'expo-haptics';
 import { db } from '../services/database';
 import { Snippet, SnippetInsert, SnippetUpdate } from '../types';
 
+const FREE_SNIPPET_LIMIT = 10;
+
 interface UseSnippetsReturn {
   snippets: Snippet[];
   isLoading: boolean;
@@ -111,10 +113,18 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [runHaptic]);
 
   const createSnippet = useCallback(async (data: SnippetInsert): Promise<Snippet> => {
+    const isPremiumEnabled = await db.getPreference('premium_enabled', 'false');
+    if (isPremiumEnabled !== 'true' && allSnippets.length >= FREE_SNIPPET_LIMIT) {
+      const limitError = new Error('You need to subscribe to Premium to add more snippets.');
+      setError(limitError.message);
+      throw limitError;
+    }
+
     const created = await db.createSnippet(data);
     setAllSnippets(prev => [created, ...prev]);
+    setError(null);
     return created;
-  }, []);
+  }, [allSnippets.length]);
 
   const updateSnippet = useCallback(async (data: SnippetUpdate) => {
     const updated = await db.updateSnippet(data);

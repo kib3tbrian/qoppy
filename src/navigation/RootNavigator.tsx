@@ -50,8 +50,8 @@ export const RootNavigator: React.FC = () => {
         await db.init();
         const onboarded = await db.getPreference('onboarded');
         setInitialRoute(onboarded === 'true' ? 'Main' : 'Onboarding');
-      } catch (error) {
-        console.error("Database initialization failed:", error);
+      } catch {
+        console.error('Database initialization failed.');
       } finally {
         setIsReady(true);
       }

@@ -282,29 +282,43 @@ export class AuthService {
   private async setPersistedValue(key: string, value: string): Promise<void> {
     try {
       await SecureStore.setItemAsync(key, value);
+      await db.setPreference(`secure_${key}`, '');
     } catch {
-      await db.setPreference(`secure_${key}`, value);
+      throw new Error('Unable to securely save app lock settings.');
     }
   }
 
   private async getPersistedValue(key: string): Promise<string | null> {
     try {
-      const value = await SecureStore.getItemAsync(key);
-      if (value !== null) {
-        return value;
+      const [secureValue, legacyValue] = await Promise.all([
+        SecureStore.getItemAsync(key),
+        db.getPreference(`secure_${key}`),
+      ]);
+
+      if (secureValue !== null) {
+        if (legacyValue) {
+          await db.setPreference(`secure_${key}`, '');
+        }
+        return secureValue;
+      }
+
+      if (legacyValue) {
+        await SecureStore.setItemAsync(key, legacyValue);
+        await db.setPreference(`secure_${key}`, '');
+        return legacyValue;
       }
     } catch {
-      // Fall back to SQLite-backed preferences below.
+      return null;
     }
 
-    return (await db.getPreference(`secure_${key}`)) ?? null;
+    return null;
   }
 
   private async deletePersistedValue(key: string): Promise<void> {
     try {
       await SecureStore.deleteItemAsync(key);
     } catch {
-      // Fall back to SQLite-backed preferences below.
+      // Best-effort secure deletion only.
     }
 
     await db.setPreference(`secure_${key}`, '');

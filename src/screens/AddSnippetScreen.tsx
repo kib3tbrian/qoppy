@@ -78,6 +78,11 @@ export const AddSnippetScreen: React.FC = () => {
         await createSnippet({ title: title.trim(), content: content.trim(), categoryId: selectedCategory });
       }
       navigation.goBack();
+    } catch (error: any) {
+      Alert.alert(
+        'Unable to save snippet',
+        error?.message ?? 'You need to subscribe to Premium to add more snippets.'
+      );
     } finally {
       setIsSaving(false);
     }

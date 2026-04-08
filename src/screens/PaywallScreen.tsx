@@ -12,6 +12,7 @@ import { Crown, Check, X, Shield, CreditCard, Bitcoin } from 'lucide-react-nativ
 import { COLORS } from '../constants';
 import { textFont } from '../constants/typography';
 import { useTheme } from '../hooks/useTheme';
+import { db } from '../services/database';
 
 const BENEFITS = [
   'Unlimited snippets instead of the free-tier cap of 10',
@@ -67,9 +68,10 @@ export const PaywallScreen: React.FC = () => {
     setIsPurchasing(true);
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
+      await db.setPreference('premium_enabled', 'true');
       Alert.alert(
         'Premium boilerplate ready',
-        `Selected ${paymentMethod.toUpperCase()} for the ${plan} plan. Secure payment wiring can be connected later.`
+        `Selected ${paymentMethod.toUpperCase()} for the ${plan} plan. Premium has been enabled locally on this device for now.`
       );
       navigation.goBack();
     } catch (error: any) {
