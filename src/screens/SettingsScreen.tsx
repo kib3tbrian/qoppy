@@ -24,7 +24,6 @@ import {
   Zap,
   FileText,
   Mail,
-  Wallet,
   Lock,
   Fingerprint,
   ShieldOff,
@@ -77,6 +76,7 @@ export const SettingsScreen: React.FC = () => {
     isProtectionEnabled,
     isBiometricAvailable,
     isBiometricEnabled,
+    authMethod,
     disableProtection,
   } = useAuth();
   const [snippetCount, setSnippetCount] = useState(0);
@@ -178,22 +178,32 @@ export const SettingsScreen: React.FC = () => {
         <Row
           icon={Lock}
           iconColor="#7C3AED"
-          label={isProtectionEnabled ? 'Update PIN or biometric' : 'Set up PIN or biometric'}
+          label={isProtectionEnabled ? 'Update app lock' : 'Set up app lock'}
           sublabel={
             isProtectionEnabled
-              ? isBiometricEnabled
-                ? 'PIN lock is enabled with biometric unlock.'
-                : 'PIN lock is enabled.'
-              : 'Protect Qoppy with a PIN and optional biometric unlock.'
+              ? authMethod === 'password'
+                ? isBiometricEnabled
+                  ? 'Password lock is enabled with biometric unlock.'
+                  : 'Password lock is enabled.'
+                : authMethod === 'biometric'
+                  ? 'Biometric lock is enabled on this device.'
+                  : isBiometricEnabled
+                    ? 'PIN lock is enabled with biometric unlock.'
+                    : 'PIN lock is enabled.'
+              : 'Choose a 4-digit PIN, 6-character password, or biometric unlock.'
           }
-          onPress={() => navigation.navigate('SetupPIN')}
+          onPress={() => navigation.navigate('SetupPIN', { fromSettings: true })}
         />
         {isBiometricAvailable && (
           <Row
             icon={Fingerprint}
             iconColor={COLORS.success}
             label="Biometric availability"
-            sublabel={isBiometricEnabled ? 'Biometric unlock is currently active.' : 'Biometric unlock can be enabled during setup.'}
+            sublabel={
+              isBiometricEnabled
+                ? 'Biometric unlock is currently active.'
+                : 'Biometric unlock is available during app lock setup.'
+            }
           />
         )}
         {isProtectionEnabled && (
@@ -206,16 +216,6 @@ export const SettingsScreen: React.FC = () => {
             onPress={handleDisableProtection}
           />
         )}
-      </Section>
-
-      <Section title="Premium">
-        <Row
-          icon={Wallet}
-          iconColor="#7C3AED"
-          label="Payment methods"
-          sublabel="Stripe card, USDT, and BTC boilerplate is ready on the premium screen."
-          onPress={() => navigation.navigate('Paywall')}
-        />
       </Section>
 
       <Section title="Data">

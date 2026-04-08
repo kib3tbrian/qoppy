@@ -1,9 +1,4 @@
-// src/screens/LockScreen.tsx
-//
-// Lock Screen — PIN entry with biometric option.
-// Shows cooldown/lockout messages, handles authentication attempts.
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -16,45 +11,88 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../hooks/useAuth';
-import { validatePin } from '../services/authValidation';
+import { validateCredential } from '../services/authValidation';
 import { styles } from '../styles';
 
 export const LockScreen: React.FC = () => {
   const {
-    unlockWithPin,
+    unlockWithSecret,
     unlockWithBiometric,
     isBiometricAvailable,
     isBiometricEnabled,
     isLocked,
     lockoutTimeRemaining,
     cooldownTimeRemaining,
+    authMethod,
   } = useAuth();
 
-  const [pin, setPin] = useState('');
+  const [secret, setSecret] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const lockCopy = useMemo(() => {
+    if (authMethod === 'password') {
+      return {
+        title: 'Enter Password',
+        placeholder: '6-character password',
+        keyboardType: 'default' as const,
+        errorTitle: 'Incorrect Password',
+        helper: 'Use the 6-character password saved on this phone.',
+      };
+    }
+
+    if (authMethod === 'biometric') {
+      return {
+        title: 'Unlock with Biometrics',
+        placeholder: '',
+        keyboardType: 'default' as const,
+        errorTitle: 'Biometric Unlock Failed',
+        helper: 'Use your fingerprint or face unlock to continue.',
+      };
+    }
+
+    return {
+      title: 'Enter PIN',
+      placeholder: '4-digit PIN',
+      keyboardType: 'number-pad' as const,
+      errorTitle: 'Incorrect PIN',
+      helper: 'Use the 4-digit PIN saved on this phone.',
+    };
+  }, [authMethod]);
 
   useEffect(() => {
     if (isBiometricEnabled && !isLocked) {
-      // Auto-attempt biometric on mount
-      handleBiometricUnlock();
+      void handleBiometricUnlock();
     }
   }, [isBiometricEnabled, isLocked]);
 
-  const handlePinSubmit = async () => {
-    const validation = validatePin(pin);
+  const handleSecretChange = (value: string) => {
+    if (authMethod === 'password') {
+      setSecret(value.replace(/[^A-Za-z0-9]/g, '').slice(0, 6));
+      return;
+    }
+
+    setSecret(value.replace(/\D/g, '').slice(0, 4));
+  };
+
+  const handleSecretSubmit = async () => {
+    if (!authMethod || authMethod === 'biometric') {
+      return;
+    }
+
+    const validation = validateCredential(authMethod, secret);
     if (!validation.valid) {
-      Alert.alert('Invalid PIN', validation.error ?? 'PIN must be 4-6 digits.');
+      Alert.alert('Invalid App Lock', validation.error ?? 'Please enter a valid app lock value.');
       return;
     }
 
     setIsLoading(true);
-    const success = await unlockWithPin(pin.trim());
+    const success = await unlockWithSecret(secret.trim());
     setIsLoading(false);
 
     if (!success) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Incorrect PIN', 'Please try again');
-      setPin('');
+      Alert.alert(lockCopy.errorTitle, 'Please try again.');
+      setSecret('');
     } else {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
@@ -65,7 +103,7 @@ export const LockScreen: React.FC = () => {
     const success = await unlockWithBiometric();
     setIsLoading(false);
 
-    if (!success) {
+    if (!success && authMethod === 'biometric') {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
@@ -97,19 +135,24 @@ export const LockScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.lockContent}
       >
-        <Text style={styles.lockTitle}>Enter PIN</Text>
+        <Text style={styles.lockTitle}>{lockCopy.title}</Text>
+        <Text style={styles.lockSubtitle}>{lockCopy.helper}</Text>
 
-        <TextInput
-          style={styles.pinInput}
-          value={pin}
-          onChangeText={value => setPin(value.replace(/\D/g, ''))}
-          placeholder="4-6 digits"
-          keyboardType="numeric"
-          secureTextEntry
-          maxLength={6}
-          editable={!isLoading && cooldownTimeRemaining === 0}
-          onSubmitEditing={handlePinSubmit}
-        />
+        {authMethod !== 'biometric' && (
+          <TextInput
+            style={styles.pinInput}
+            value={secret}
+            onChangeText={handleSecretChange}
+            placeholder={lockCopy.placeholder}
+            keyboardType={lockCopy.keyboardType}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+            maxLength={authMethod === 'password' ? 6 : 4}
+            editable={!isLoading && cooldownTimeRemaining === 0}
+            onSubmitEditing={handleSecretSubmit}
+          />
+        )}
 
         {cooldownTimeRemaining > 0 && (
           <Text style={styles.cooldownText}>
@@ -117,15 +160,17 @@ export const LockScreen: React.FC = () => {
           </Text>
         )}
 
-        <TouchableOpacity
-          style={[styles.unlockButton, (isLoading || cooldownTimeRemaining > 0) && styles.disabledButton]}
-          onPress={handlePinSubmit}
-          disabled={isLoading || cooldownTimeRemaining > 0}
-        >
-          <Text style={styles.unlockButtonText}>
-            {isLoading ? 'Unlocking...' : 'Unlock'}
-          </Text>
-        </TouchableOpacity>
+        {authMethod !== 'biometric' && (
+          <TouchableOpacity
+            style={[styles.unlockButton, (isLoading || cooldownTimeRemaining > 0) && styles.disabledButton]}
+            onPress={handleSecretSubmit}
+            disabled={isLoading || cooldownTimeRemaining > 0}
+          >
+            <Text style={styles.unlockButtonText}>
+              {isLoading ? 'Unlocking...' : 'Unlock'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {isBiometricAvailable && isBiometricEnabled && (
           <TouchableOpacity
@@ -133,7 +178,9 @@ export const LockScreen: React.FC = () => {
             onPress={handleBiometricUnlock}
             disabled={isLoading}
           >
-            <Text style={styles.biometricButtonText}>Use Biometric</Text>
+            <Text style={styles.biometricButtonText}>
+              {authMethod === 'biometric' ? 'Unlock with Biometrics' : 'Use Biometrics'}
+            </Text>
           </TouchableOpacity>
         )}
       </KeyboardAvoidingView>

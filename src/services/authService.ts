@@ -1,13 +1,17 @@
 import * as bcrypt from 'bcryptjs';
 import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { db } from './database';
-import { validatePin, validatePinSetup } from './authValidation';
+import { AuthMethod, validateCredential } from './authValidation';
 
-const PIN_HASH_KEY = 'pin_hash';
+const AUTH_HASH_KEY = 'auth_hash';
+const AUTH_METHOD_KEY = 'auth_method';
 const BIOMETRIC_KEY = 'biometric_enabled';
+const LEGACY_PIN_HASH_KEY = 'pin_hash';
 const BCRYPT_SALT_ROUNDS = 12;
 
 export interface AuthConfig {
+  authMethod: AuthMethod | null;
   biometricEnabled: boolean;
   failedAttempts: number;
   lockedUntil: number | null;
@@ -37,70 +41,86 @@ export class AuthService {
     return this.sessionToken !== null;
   }
 
-  async hashPin(pin: string): Promise<string> {
-    const validation = validatePin(pin);
+  async hashSecret(method: AuthMethod, secret: string): Promise<string> {
+    const validation = validateCredential(method, secret);
     if (!validation.valid) {
-      throw new Error(validation.error ?? 'Invalid PIN.');
+      throw new Error(validation.error ?? 'Invalid app lock value.');
     }
 
-    return bcrypt.hash(pin.trim(), BCRYPT_SALT_ROUNDS);
+    return bcrypt.hash(secret.trim(), BCRYPT_SALT_ROUNDS);
   }
 
-  async verifyPin(pin: string, hash: string): Promise<boolean> {
-    const validation = validatePin(pin);
+  async verifySecret(method: AuthMethod, secret: string, hash: string): Promise<boolean> {
+    const validation = validateCredential(method, secret);
     if (!validation.valid || !hash) {
       return false;
     }
 
-    const normalizedPin = pin.trim();
+    const normalizedSecret = secret.trim();
     if (this.isBcryptHash(hash)) {
-      return bcrypt.compare(normalizedPin, hash);
+      return bcrypt.compare(normalizedSecret, hash);
     }
 
-    return normalizedPin === hash;
-  }
-
-  async storePinHash(hash: string): Promise<void> {
-    await SecureStore.setItemAsync(PIN_HASH_KEY, hash);
-  }
-
-  async getPinHash(): Promise<string | null> {
-    return SecureStore.getItemAsync(PIN_HASH_KEY);
-  }
-
-  async deletePinHash(): Promise<void> {
-    await SecureStore.deleteItemAsync(PIN_HASH_KEY);
-  }
-
-  async storeBiometricEnabled(enabled: boolean): Promise<void> {
-    await SecureStore.setItemAsync(BIOMETRIC_KEY, enabled ? 'true' : 'false');
-  }
-
-  async getBiometricEnabled(): Promise<boolean> {
-    const value = await SecureStore.getItemAsync(BIOMETRIC_KEY);
-    return value === 'true';
-  }
-
-  async deleteBiometricEnabled(): Promise<void> {
-    await SecureStore.deleteItemAsync(BIOMETRIC_KEY);
+    return normalizedSecret === hash;
   }
 
   async getAuthConfig(): Promise<AuthConfig | null> {
-    const config = await db.getAuthConfig();
+    const [config, authMethod, biometricEnabled] = await Promise.all([
+      db.getAuthConfig(),
+      this.getAuthMethod(),
+      this.getBiometricEnabled(),
+    ]);
+
     if (!config) {
       return null;
     }
 
     return {
-      biometricEnabled: config.biometricEnabled,
+      authMethod,
+      biometricEnabled: config.biometricEnabled || biometricEnabled,
       failedAttempts: config.failedAttempts,
       lockedUntil: config.lockedUntil,
       createdAt: config.createdAt,
     };
   }
 
-  async hasPinConfigured(): Promise<boolean> {
-    return (await this.getPinHash()) !== null;
+  async hasProtectionConfigured(): Promise<boolean> {
+    const [authMethod, secretHash] = await Promise.all([
+      this.getAuthMethod(),
+      this.getStoredSecretHash(),
+    ]);
+
+    return authMethod === 'biometric' || Boolean(secretHash);
+  }
+
+  async getAuthMethod(): Promise<AuthMethod | null> {
+    const value = await this.getPersistedValue(AUTH_METHOD_KEY);
+    if (value === 'pin' || value === 'password' || value === 'biometric') {
+      return value;
+    }
+
+    return null;
+  }
+
+  async storeAuthMethod(method: AuthMethod): Promise<void> {
+    await this.setPersistedValue(AUTH_METHOD_KEY, method);
+  }
+
+  async deleteAuthMethod(): Promise<void> {
+    await this.deletePersistedValue(AUTH_METHOD_KEY);
+  }
+
+  async getBiometricEnabled(): Promise<boolean> {
+    const value = await this.getPersistedValue(BIOMETRIC_KEY);
+    return value === 'true';
+  }
+
+  async storeBiometricEnabled(enabled: boolean): Promise<void> {
+    await this.setPersistedValue(BIOMETRIC_KEY, enabled ? 'true' : 'false');
+  }
+
+  async deleteBiometricEnabled(): Promise<void> {
+    await this.deletePersistedValue(BIOMETRIC_KEY);
   }
 
   async updateAuthConfig(config: Partial<AuthConfig>): Promise<void> {
@@ -113,13 +133,19 @@ export class AuthService {
 
   async deleteAuthConfig(): Promise<void> {
     await db.deleteAuthConfig();
-    await this.deletePinHash();
-    await this.deleteBiometricEnabled();
+    await Promise.all([
+      this.deleteStoredSecretHash(),
+      this.deleteBiometricEnabled(),
+      this.deleteAuthMethod(),
+    ]);
   }
 
   async skipAuthSetup(): Promise<void> {
-    await this.deletePinHash();
-    await this.storeBiometricEnabled(false);
+    await Promise.all([
+      this.deleteStoredSecretHash(),
+      this.deleteAuthMethod(),
+      this.storeBiometricEnabled(false),
+    ]);
     await this.updateAuthConfig({
       biometricEnabled: false,
       failedAttempts: 0,
@@ -127,15 +153,43 @@ export class AuthService {
     });
   }
 
-  async setupAuth(pin: string, enableBiometric: boolean = false): Promise<void> {
-    const validation = validatePinSetup(pin, pin);
-    if (!validation.valid) {
-      throw new Error(validation.error ?? 'Invalid PIN.');
+  async setupAuth(
+    method: AuthMethod,
+    secret: string,
+    enableBiometric: boolean = false
+  ): Promise<void> {
+    if (method === 'biometric') {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Enable biometric unlock for Qoppy',
+        fallbackLabel: 'Use device credentials',
+        cancelLabel: 'Cancel',
+      });
+
+      if (!result.success) {
+        throw new Error('Biometric setup was not completed.');
+      }
+
+      await Promise.all([
+        this.deleteStoredSecretHash(),
+        this.storeAuthMethod('biometric'),
+        this.storeBiometricEnabled(true),
+      ]);
+      await this.updateAuthConfig({
+        biometricEnabled: true,
+        failedAttempts: 0,
+        lockedUntil: null,
+      });
+      return;
     }
 
-    const hash = await this.hashPin(pin);
-    await this.storePinHash(hash);
-    await this.storeBiometricEnabled(enableBiometric);
+    const normalizedSecret = secret.trim();
+    const hash = await this.hashSecret(method, normalizedSecret);
+
+    await Promise.all([
+      this.storeStoredSecretHash(hash),
+      this.storeAuthMethod(method),
+      this.storeBiometricEnabled(enableBiometric),
+    ]);
     await this.updateAuthConfig({
       biometricEnabled: enableBiometric,
       failedAttempts: 0,
@@ -143,20 +197,20 @@ export class AuthService {
     });
   }
 
-  async isSetupComplete(): Promise<boolean> {
-    return this.hasPinConfigured();
-  }
+  async verifyStoredCredential(secret: string): Promise<boolean> {
+    const [authMethod, storedHash] = await Promise.all([
+      this.getAuthMethod(),
+      this.getStoredSecretHash(),
+    ]);
 
-  async verifyStoredPin(pin: string): Promise<boolean> {
-    const storedHash = await this.getPinHash();
-    if (!storedHash) {
+    if (!authMethod || authMethod === 'biometric' || !storedHash) {
       return false;
     }
 
-    const isValid = await this.verifyPin(pin, storedHash);
+    const isValid = await this.verifySecret(authMethod, secret, storedHash);
     if (isValid && !this.isBcryptHash(storedHash)) {
-      const upgradedHash = await this.hashPin(pin);
-      await this.storePinHash(upgradedHash);
+      const upgradedHash = await this.hashSecret(authMethod, secret);
+      await this.storeStoredSecretHash(upgradedHash);
     }
 
     return isValid;
@@ -192,6 +246,68 @@ export class AuthService {
     }
 
     return Math.max(0, lockedUntil - Date.now());
+  }
+
+  private async getStoredSecretHash(): Promise<string | null> {
+    const storedHash = await this.getPersistedValue(AUTH_HASH_KEY);
+    if (storedHash) {
+      return storedHash;
+    }
+
+    const legacyHash = await this.getPersistedValue(LEGACY_PIN_HASH_KEY);
+    if (legacyHash) {
+      await this.storeStoredSecretHash(legacyHash);
+      await this.deletePersistedValue(LEGACY_PIN_HASH_KEY);
+      const currentMethod = await this.getAuthMethod();
+      if (!currentMethod) {
+        await this.storeAuthMethod('pin');
+      }
+      return legacyHash;
+    }
+
+    return null;
+  }
+
+  private async storeStoredSecretHash(hash: string): Promise<void> {
+    await this.setPersistedValue(AUTH_HASH_KEY, hash);
+  }
+
+  private async deleteStoredSecretHash(): Promise<void> {
+    await Promise.all([
+      this.deletePersistedValue(AUTH_HASH_KEY),
+      this.deletePersistedValue(LEGACY_PIN_HASH_KEY),
+    ]);
+  }
+
+  private async setPersistedValue(key: string, value: string): Promise<void> {
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch {
+      await db.setPreference(`secure_${key}`, value);
+    }
+  }
+
+  private async getPersistedValue(key: string): Promise<string | null> {
+    try {
+      const value = await SecureStore.getItemAsync(key);
+      if (value !== null) {
+        return value;
+      }
+    } catch {
+      // Fall back to SQLite-backed preferences below.
+    }
+
+    return (await db.getPreference(`secure_${key}`)) ?? null;
+  }
+
+  private async deletePersistedValue(key: string): Promise<void> {
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch {
+      // Fall back to SQLite-backed preferences below.
+    }
+
+    await db.setPreference(`secure_${key}`, '');
   }
 
   private isBcryptHash(value: string): boolean {

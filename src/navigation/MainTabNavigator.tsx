@@ -20,9 +20,11 @@ const TAB_ICONS: Record<string, React.ComponentType<any>> = {
 
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const bottomOffset = Math.max(insets.bottom, 10);
 
   return (
-    <View style={[styles.tabBar, { paddingBottom: insets.bottom || 12 }]}>
+    <View style={[styles.tabBarWrap, { bottom: bottomOffset }]}>
+      <View style={styles.tabBar}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const label = options.tabBarLabel ?? route.name;
@@ -45,16 +47,17 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           >
             <View style={[styles.tabIconWrap, isFocused && styles.tabIconWrapActive]}>
               <Icon
-                size={20}
-                color={isFocused ? '#7C3AED' : '#9CA3AF'}
+                size={22}
+                color={isFocused ? '#FFFFFF' : '#7A7A85'}
                 strokeWidth={isFocused ? 2.5 : 2}
-                fill={isFocused && route.name === 'Favorites' ? '#7C3AED' : 'transparent'}
+                fill={isFocused && route.name === 'Favorites' ? '#FFFFFF' : 'transparent'}
               />
             </View>
             <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>{String(label)}</Text>
           </TouchableOpacity>
         );
       })}
+      </View>
     </View>
   );
 }
@@ -93,33 +96,52 @@ export const MainTabNavigator: React.FC = () => (
 );
 
 const styles = StyleSheet.create({
+  tabBarWrap: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    zIndex: 20,
+  },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#DDD6FE',
-    paddingTop: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.42)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 26,
+    shadowColor: '#140C24',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    elevation: 10,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
     gap: 4,
+    borderRadius: 22,
+    paddingVertical: 4,
   },
   tabIconWrap: {
-    width: 40,
-    height: 32,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tabIconWrapActive: {
-    backgroundColor: '#F5F3FF',
+    backgroundColor: '#7C3AED',
   },
   tabLabel: {
     ...textFont(),
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
-    color: '#9CA3AF',
+    color: '#7A7A85',
   },
   tabLabelActive: {
     color: '#7C3AED',

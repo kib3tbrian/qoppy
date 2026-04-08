@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   list: {
-    paddingBottom: 100,
+    paddingBottom: 118,
   },
   row: {
     justifyContent: 'flex-start',
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 32,
+    bottom: 92,
     right: 24,
     width: 58,
     height: 58,

@@ -53,6 +53,41 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
+  authOptionRow: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 20,
+  },
+  authOptionCard: {
+    flex: 1,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  authOptionCardActive: {
+    borderColor: '#7C3AED',
+    backgroundColor: '#F5F3FF',
+  },
+  authOptionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E1B2E',
+    marginBottom: 4,
+  },
+  authOptionTitleActive: {
+    color: '#7C3AED',
+  },
+  authOptionText: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
   cooldownText: {
     fontSize: 14,
     color: '#EF4444',
@@ -143,9 +178,30 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
     marginBottom: 16,
+    paddingHorizontal: 4,
   },
   biometricToggleText: {
     fontSize: 16,
     color: '#1E1B2E',
+  },
+  helperCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    padding: 16,
+    marginBottom: 16,
+  },
+  helperTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E1B2E',
+    marginBottom: 6,
+  },
+  helperText: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 21,
   },
 });

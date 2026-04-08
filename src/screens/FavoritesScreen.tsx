@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   headerBtn: {
     padding: 8,
   },
-  list: { paddingBottom: 80 },
+  list: { paddingBottom: 112 },
   row: { justifyContent: 'flex-start', paddingHorizontal: 8 },
   count: {
     ...textFont(),

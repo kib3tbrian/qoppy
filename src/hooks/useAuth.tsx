@@ -9,7 +9,7 @@ import React, {
 import { AppState, AppStateStatus } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { authService } from '../services/authService';
-import { validatePin, validatePinSetup } from '../services/authValidation';
+import { AuthMethod, validateAuthSetup, validateCredential } from '../services/authValidation';
 
 const AUTO_LOCK_TIMEOUT = 5 * 60 * 1000;
 const COOLDOWN_DURATION = 30 * 1000;
@@ -22,6 +22,7 @@ export interface AuthState {
   isProtectionEnabled: boolean;
   isBiometricAvailable: boolean;
   isBiometricEnabled: boolean;
+  authMethod: AuthMethod | null;
   failedAttempts: number;
   isLocked: boolean;
   lockoutTimeRemaining: number;
@@ -30,9 +31,14 @@ export interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  unlockWithPin: (pin: string) => Promise<boolean>;
+  unlockWithSecret: (secret: string) => Promise<boolean>;
   unlockWithBiometric: () => Promise<boolean>;
-  setupPin: (pin: string, confirmPin: string, enableBiometric?: boolean) => Promise<boolean>;
+  setupProtection: (
+    method: AuthMethod,
+    secret: string,
+    confirmSecret: string,
+    enableBiometric?: boolean
+  ) => Promise<boolean>;
   skipPinSetup: () => Promise<void>;
   disableProtection: () => Promise<void>;
   lock: () => void;
@@ -47,6 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isProtectionEnabled: false,
     isBiometricAvailable: false,
     isBiometricEnabled: false,
+    authMethod: null,
     failedAttempts: 0,
     isLocked: false,
     lockoutTimeRemaining: 0,
@@ -57,14 +64,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const initializeAuth = useCallback(async () => {
     try {
-      const [config, biometricAvailable, biometricEnabled, hasPinConfigured] = await Promise.all([
+      const [config, hasBiometricHardware, isBiometricEnrolled, hasProtectionConfigured] = await Promise.all([
         authService.getAuthConfig(),
         LocalAuthentication.hasHardwareAsync(),
-        authService.getBiometricEnabled(),
-        authService.hasPinConfigured(),
+        LocalAuthentication.isEnrolledAsync(),
+        authService.hasProtectionConfigured(),
       ]);
-
-      const isProtectionEnabled = hasPinConfigured;
+      const biometricAvailable = hasBiometricHardware && isBiometricEnrolled;
+      const authMethod = config?.authMethod ?? null;
+      const isProtectionEnabled = hasProtectionConfigured;
       const isLocked = config ? authService.isLocked(config.lockedUntil) : false;
       const lockoutTimeRemaining = config ? authService.getLockoutTimeRemaining(config.lockedUntil) : 0;
 
@@ -73,15 +81,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: isProtectionEnabled ? authService.isAuthenticated() : true,
         isProtectionEnabled,
         isBiometricAvailable: biometricAvailable,
-        isBiometricEnabled: isProtectionEnabled && biometricAvailable && biometricEnabled,
+        isBiometricEnabled: biometricAvailable && Boolean(config?.biometricEnabled || authMethod === 'biometric'),
+        authMethod,
         failedAttempts: config?.failedAttempts ?? 0,
         isLocked,
         lockoutTimeRemaining,
         needsSetup: config === null,
         isLoading: false,
       }));
-    } catch (error) {
-      console.error('Auth initialization failed:', error);
+    } catch {
       setState(prev => ({ ...prev, isLoading: false }));
     }
   }, []);
@@ -186,12 +194,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setState(prev => ({ ...prev, failedAttempts: newAttempts }));
   }, [state.failedAttempts]);
 
-  const unlockWithPin = useCallback(async (pin: string): Promise<boolean> => {
-    if (state.isLocked || state.cooldownTimeRemaining > 0) {
+  const unlockWithSecret = useCallback(async (secret: string): Promise<boolean> => {
+    if (state.isLocked || state.cooldownTimeRemaining > 0 || !state.authMethod || state.authMethod === 'biometric') {
       return false;
     }
 
-    const validation = validatePin(pin);
+    const validation = validateCredential(state.authMethod, secret);
     if (!validation.valid) {
       return false;
     }
@@ -202,7 +210,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      const isValid = await authService.verifyStoredPin(pin.trim());
+      const isValid = await authService.verifyStoredCredential(secret.trim());
       if (!isValid) {
         await handleFailedAttempt();
         return false;
@@ -219,12 +227,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLocked: false,
       }));
       return true;
-    } catch (error) {
-      console.error('PIN unlock failed:', error);
+    } catch {
       await handleFailedAttempt();
       return false;
     }
-  }, [handleFailedAttempt, state.cooldownTimeRemaining, state.isLocked]);
+  }, [handleFailedAttempt, state.authMethod, state.cooldownTimeRemaining, state.isLocked]);
 
   const unlockWithBiometric = useCallback(async (): Promise<boolean> => {
     if (!state.isBiometricAvailable || !state.isBiometricEnabled || state.isLocked) {
@@ -233,8 +240,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock with biometrics',
-        fallbackLabel: 'Use PIN',
+        promptMessage: 'Unlock Qoppy',
+        fallbackLabel: state.authMethod === 'password' ? 'Use password' : 'Use PIN',
       });
 
       if (!result.success) {
@@ -244,84 +251,85 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       authService.setSessionToken(authService.generateSessionToken());
       setState(prev => ({ ...prev, isAuthenticated: true }));
       return true;
-    } catch (error) {
-      console.error('Biometric unlock failed:', error);
+    } catch {
       return false;
     }
-  }, [state.isBiometricAvailable, state.isBiometricEnabled, state.isLocked]);
+  }, [state.authMethod, state.isBiometricAvailable, state.isBiometricEnabled, state.isLocked]);
 
-  const setupPin = useCallback(async (
-    pin: string,
-    confirmPin: string,
+  const setupProtection = useCallback(async (
+    method: AuthMethod,
+    secret: string,
+    confirmSecret: string,
     enableBiometric: boolean = false
   ): Promise<boolean> => {
-    const validation = validatePinSetup(pin, confirmPin);
+    const validation = validateAuthSetup(method, secret, confirmSecret, state.isBiometricAvailable);
     if (!validation.valid) {
       return false;
     }
 
     try {
-      await authService.setupAuth(pin.trim(), enableBiometric);
+      await authService.setupAuth(method, secret.trim(), enableBiometric);
+      await authService.resetFailedAttempts();
       authService.setSessionToken(authService.generateSessionToken());
+      await initializeAuth();
       setState(prev => ({
         ...prev,
         isAuthenticated: true,
-        isProtectionEnabled: true,
-        needsSetup: false,
-        failedAttempts: 0,
-        isLocked: false,
-        lockoutTimeRemaining: 0,
         cooldownTimeRemaining: 0,
-        isBiometricEnabled: enableBiometric && prev.isBiometricAvailable,
+        lockoutTimeRemaining: 0,
+        isLocked: false,
       }));
       return true;
     } catch {
-      console.error('PIN setup failed.');
       return false;
     }
-  }, []);
+  }, [initializeAuth, state.isBiometricAvailable]);
 
   const skipPinSetup = useCallback(async (): Promise<void> => {
     await authService.skipAuthSetup();
     authService.clearSessionToken();
+    await initializeAuth();
     setState(prev => ({
       ...prev,
       isAuthenticated: true,
       isProtectionEnabled: false,
       isBiometricEnabled: false,
+      authMethod: null,
       needsSetup: false,
       failedAttempts: 0,
       isLocked: false,
       lockoutTimeRemaining: 0,
       cooldownTimeRemaining: 0,
     }));
-  }, []);
+  }, [initializeAuth]);
 
   const disableProtection = useCallback(async (): Promise<void> => {
     await authService.deleteAuthConfig();
     authService.clearSessionToken();
+    await initializeAuth();
     setState(prev => ({
       ...prev,
       isAuthenticated: true,
       isProtectionEnabled: false,
       isBiometricEnabled: false,
+      authMethod: null,
       needsSetup: false,
       failedAttempts: 0,
       isLocked: false,
       lockoutTimeRemaining: 0,
       cooldownTimeRemaining: 0,
     }));
-  }, []);
+  }, [initializeAuth]);
 
   const value = useMemo<AuthContextValue>(() => ({
     ...state,
-    unlockWithPin,
+    unlockWithSecret,
     unlockWithBiometric,
-    setupPin,
+    setupProtection,
     skipPinSetup,
     disableProtection,
     lock,
-  }), [disableProtection, lock, setupPin, skipPinSetup, state, unlockWithBiometric, unlockWithPin]);
+  }), [disableProtection, lock, setupProtection, skipPinSetup, state, unlockWithBiometric, unlockWithSecret]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
