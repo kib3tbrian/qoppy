@@ -21,18 +21,27 @@ const TAB_ICONS: Record<string, React.ComponentType<any>> = {
 
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
+  const bottomOffset = Math.max(insets.bottom, 10);
 
   return (
     <View
       style={[
         styles.tabBarWrap,
         {
-          backgroundColor: theme.tabInset,
-          paddingBottom: Math.max(insets.bottom, 6),
+          bottom: bottomOffset,
         },
       ]}
     >
+      <View
+        pointerEvents="none"
+        style={[
+          styles.tabBarBackdrop,
+          {
+            backgroundColor: mode === 'dark' ? 'rgba(20, 19, 28, 0.22)' : 'rgba(237, 233, 246, 0.42)',
+          },
+        ]}
+      />
       <View style={[styles.tabBar, { backgroundColor: theme.tabGlass, borderColor: theme.tabBorder, shadowColor: theme.shadow }]}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
@@ -90,7 +99,7 @@ export const MainTabNavigator: React.FC = () => {
   return (
     <Tab.Navigator
       tabBar={props => <CustomTabBar {...props} />}
-      sceneContainerStyle={{ backgroundColor: theme.background }}
+      sceneContainerStyle={{ backgroundColor: '#EDE9F6', marginBottom: 0, paddingBottom: 0 }}
       screenOptions={{
         headerStyle: { backgroundColor: theme.header },
         headerTintColor: theme.text,
@@ -145,11 +154,9 @@ const styles = StyleSheet.create({
   },
   tabBarWrap: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    left: 16,
+    right: 16,
+    paddingTop: 0,
   },
   tabBar: {
     flexDirection: 'row',
@@ -163,6 +170,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 20,
     elevation: 12,
+  },
+  tabBarBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 28,
   },
   tabItem: {
     flex: 1,
