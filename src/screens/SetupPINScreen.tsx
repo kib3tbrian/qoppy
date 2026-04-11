@@ -15,8 +15,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../hooks/useAuth';
 import { AuthMethod, validateAuthSetup } from '../services/authValidation';
-import { styles } from '../styles';
+import { createAppStyles } from '../styles';
 import { RootStackParamList } from '../types';
+import { useTheme } from '../hooks/useTheme';
 
 type SetupPinRoute = RouteProp<RootStackParamList, 'SetupPIN'>;
 type SetupPinNav = NativeStackNavigationProp<RootStackParamList>;
@@ -28,6 +29,8 @@ const METHOD_COPY: Record<AuthMethod, { title: string; hint: string }> = {
 };
 
 export const SetupPINScreen: React.FC = () => {
+  const { theme } = useTheme();
+  const styles = createAppStyles(theme);
   const navigation = useNavigation<SetupPinNav>();
   const route = useRoute<SetupPinRoute>();
   const fromSettings = Boolean(route.params?.fromSettings);
@@ -203,6 +206,8 @@ export const SetupPINScreen: React.FC = () => {
               value={enableBiometric}
               onValueChange={setEnableBiometric}
               disabled={isLoading}
+              trackColor={{ false: theme.border, true: theme.primary }}
+              thumbColor={theme.onPrimary}
             />
           </View>
         )}

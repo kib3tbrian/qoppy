@@ -51,10 +51,8 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#DDD6FE',
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginHorizontal: 16,
@@ -68,7 +66,6 @@ const styles = StyleSheet.create({
     ...textFont(),
     flex: 1,
     fontSize: 16,
-    color: '#1E1B2E',
     padding: 0,
   },
 });

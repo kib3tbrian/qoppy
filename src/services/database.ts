@@ -76,13 +76,8 @@ class DatabaseService {
       );
     `);
 
-    // Seed default categories if the table is empty
-    const row = await db.getFirstAsync<{ count: number }>(
-      `SELECT COUNT(*) as count FROM categories`
-    );
-    if (row?.count === 0) {
-      await this.seedDefaultCategories();
-    }
+    await this.seedDefaultCategories();
+    await this.seedExampleSnippets();
   }
 
   private async seedDefaultCategories(): Promise<void> {
@@ -93,6 +88,51 @@ class DatabaseService {
         [cat.id, cat.name, cat.color, cat.icon]
       );
     }
+  }
+
+  private async seedExampleSnippets(): Promise<void> {
+    const db = this.getDb();
+    const [row, seededPreference] = await Promise.all([
+      db.getFirstAsync<{ count: number }>(`SELECT COUNT(*) as count FROM snippets`),
+      this.getPreference('example_snippets_seeded', 'false'),
+    ]);
+
+    if ((row?.count ?? 0) > 0 || seededPreference === 'true') {
+      return;
+    }
+
+    const now = Date.now();
+    const examples: Array<SnippetInsert & { id: string; categoryId: string }> = [
+      {
+        id: `${now.toString(36)}-example-home`,
+        title: 'Home Address',
+        content: '123 Palm Avenue, Apt 4B, Nairobi',
+        categoryId: 'personal',
+      },
+      {
+        id: `${(now + 1).toString(36)}-example-work`,
+        title: 'Work Email',
+        content: 'alex@company.com',
+        categoryId: 'work',
+      },
+      {
+        id: `${(now + 2).toString(36)}-example-iban`,
+        title: 'IBAN',
+        content: 'DE89 3704 0044 0532 0130 00',
+        categoryId: 'finance',
+      },
+    ];
+
+    for (const [index, snippet] of examples.entries()) {
+      const createdAt = now + index;
+      await db.runAsync(
+        `INSERT OR IGNORE INTO snippets (id, title, content, category_id, is_favorite, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 0, ?, ?)`,
+        [snippet.id, snippet.title, snippet.content, snippet.categoryId, createdAt, createdAt]
+      );
+    }
+
+    await this.setPreference('example_snippets_seeded', 'true');
   }
 
   // ─── Snippet CRUD ─────────────────────────────────────────────────────────
@@ -229,6 +269,11 @@ class DatabaseService {
   async deleteSnippet(id: string): Promise<void> {
     const db = this.getDb();
     await db.runAsync(`DELETE FROM snippets WHERE id = ?`, [id]);
+  }
+
+  async deleteAllSnippets(): Promise<void> {
+    const db = this.getDb();
+    await db.runAsync(`DELETE FROM snippets`);
   }
 
   async incrementUseCount(id: string): Promise<void> {

@@ -3,6 +3,12 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Home, Heart, Moon, Settings, Sun } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import HomeScreen from '../screens/HomeScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
@@ -10,6 +16,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import { MainTabParamList } from '../types';
 import { textFont } from '../constants/typography';
 import { useTheme } from '../hooks/useTheme';
+import { TAB_TRANSITION_CONFIG } from '../constants';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -19,9 +26,65 @@ const TAB_ICONS: Record<string, React.ComponentType<any>> = {
   Settings,
 };
 
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
+interface TabItemProps {
+  label: string;
+  isFocused: boolean;
+  onPress: () => void;
+  icon: React.ComponentType<any>;
+  routeName: string;
+}
+
+const TabItem: React.FC<TabItemProps> = ({ label, isFocused, onPress, icon: Icon, routeName }) => {
+  const { theme } = useTheme();
+  const activeProgress = useSharedValue(isFocused ? 1 : 0);
+
+  React.useEffect(() => {
+    activeProgress.value = withTiming(isFocused ? 1 : 0, {
+      duration: TAB_TRANSITION_CONFIG.duration,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [activeProgress, isFocused]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 0.96 + activeProgress.value * 0.04 }],
+  }));
+
+  return (
+    <AnimatedTouchableOpacity
+      style={[styles.tabItem, animatedStyle]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <View
+        style={[
+          styles.tabIconWrap,
+          isFocused && { backgroundColor: theme.primary },
+        ]}
+      >
+        <Icon
+          size={21}
+          color={isFocused ? theme.onPrimary : theme.tabInactive}
+          strokeWidth={isFocused ? 2.5 : 2}
+          fill={isFocused && routeName === 'Favorites' ? theme.onPrimary : 'transparent'}
+        />
+      </View>
+      <Text
+        style={[
+          styles.tabLabel,
+          { color: isFocused ? theme.text : theme.tabInactive },
+        ]}
+      >
+        {label}
+      </Text>
+    </AnimatedTouchableOpacity>
+  );
+};
+
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const { theme, mode } = useTheme();
+  const { theme } = useTheme();
   const bottomOffset = Math.max(insets.bottom, 10);
 
   return (
@@ -38,7 +101,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         style={[
           styles.tabBarBackdrop,
           {
-            backgroundColor: mode === 'dark' ? 'rgba(20, 19, 28, 0.42)' : 'rgba(237, 233, 246, 0.68)',
+            backgroundColor: theme.tabBackdrop,
           },
         ]}
       />
@@ -57,34 +120,14 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           };
 
           return (
-            <TouchableOpacity
+            <TabItem
               key={route.key}
-              style={styles.tabItem}
               onPress={onPress}
-              activeOpacity={0.85}
-            >
-              <View
-                style={[
-                  styles.tabIconWrap,
-                  isFocused && { backgroundColor: theme.primary },
-                ]}
-              >
-                <Icon
-                  size={21}
-                  color={isFocused ? '#FFFFFF' : theme.tabInactive}
-                  strokeWidth={isFocused ? 2.5 : 2}
-                  fill={isFocused && route.name === 'Favorites' ? '#FFFFFF' : 'transparent'}
-                />
-              </View>
-              <Text
-                style={[
-                  styles.tabLabel,
-                  { color: isFocused ? theme.text : theme.tabInactive },
-                ]}
-              >
-                {String(label)}
-              </Text>
-            </TouchableOpacity>
+              label={String(label)}
+              isFocused={isFocused}
+              icon={Icon}
+              routeName={route.name}
+            />
           );
         })}
       </View>
@@ -99,7 +142,7 @@ export const MainTabNavigator: React.FC = () => {
   return (
     <Tab.Navigator
       tabBar={props => <CustomTabBar {...props} />}
-      sceneContainerStyle={{ backgroundColor: '#EDE9F6', marginBottom: 0, paddingBottom: 0 }}
+      sceneContainerStyle={{ backgroundColor: theme.background, marginBottom: 0, paddingBottom: 0 }}
       screenOptions={{
         headerStyle: { backgroundColor: theme.header },
         headerTintColor: theme.text,

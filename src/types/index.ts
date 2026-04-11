@@ -37,7 +37,7 @@ export type RootStackParamList = {
   Main: undefined;
   AddSnippet: { snippetId?: string };
   ManageCategories: undefined;
-  Paywall: undefined;
+  Paywall: { source?: 'settings' | 'limit-modal' } | undefined;
   SetupPIN: { fromSettings?: boolean } | undefined;
   SnippetDetail: { snippetId: string };
 };

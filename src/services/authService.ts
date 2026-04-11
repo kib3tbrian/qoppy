@@ -9,6 +9,7 @@ const AUTH_METHOD_KEY = 'auth_method';
 const BIOMETRIC_KEY = 'biometric_enabled';
 const LEGACY_PIN_HASH_KEY = 'pin_hash';
 const SESSION_EXPIRES_AT_KEY = 'auth_session_expires_at';
+const AUTH_SETUP_COMPLETE_KEY = 'auth_setup_complete';
 const BCRYPT_SALT_ROUNDS = 12;
 
 export interface AuthConfig {
@@ -172,6 +173,7 @@ export class AuthService {
       this.deleteStoredSecretHash(),
       this.deleteBiometricEnabled(),
       this.deleteAuthMethod(),
+      this.markSetupComplete(),
       this.clearSession(),
     ]);
   }
@@ -181,6 +183,7 @@ export class AuthService {
       this.deleteStoredSecretHash(),
       this.deleteAuthMethod(),
       this.storeBiometricEnabled(false),
+      this.markSetupComplete(),
       this.clearSession(),
     ]);
     await this.updateAuthConfig({
@@ -210,6 +213,7 @@ export class AuthService {
         this.deleteStoredSecretHash(),
         this.storeAuthMethod('biometric'),
         this.storeBiometricEnabled(true),
+        this.markSetupComplete(),
       ]);
       await this.updateAuthConfig({
         biometricEnabled: true,
@@ -226,6 +230,7 @@ export class AuthService {
       this.storeStoredSecretHash(hash),
       this.storeAuthMethod(method),
       this.storeBiometricEnabled(enableBiometric),
+      this.markSetupComplete(),
     ]);
     await this.updateAuthConfig({
       biometricEnabled: enableBiometric,
@@ -283,6 +288,15 @@ export class AuthService {
     }
 
     return Math.max(0, lockedUntil - Date.now());
+  }
+
+  async hasCompletedSetup(): Promise<boolean> {
+    const value = await db.getPreference(AUTH_SETUP_COMPLETE_KEY, 'false');
+    return value === 'true';
+  }
+
+  async markSetupComplete(): Promise<void> {
+    await db.setPreference(AUTH_SETUP_COMPLETE_KEY, 'true');
   }
 
   private async getStoredSecretHash(): Promise<string | null> {

@@ -21,7 +21,7 @@ import Animated, {
   interpolateColor,
   runOnJS,
 } from 'react-native-reanimated';
-import { Check, Copy, Heart, MoreVertical } from 'lucide-react-native';
+import { Check, Copy, Heart } from 'lucide-react-native';
 import { Snippet } from '../../types';
 import { COLORS, ANIMATION_DURATION } from '../../constants';
 import { textFont } from '../../constants/typography';
@@ -53,7 +53,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
   onEdit,
   onDelete,
 }) => {
-  const { theme, mode } = useTheme();
+  const { theme } = useTheme();
   const scale = useSharedValue(1);
   const glowOpacity = useSharedValue(0);
   const copyProgress = useSharedValue(0);
@@ -72,7 +72,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
     backgroundColor: interpolateColor(
       copyProgress.value,
       [0, 1],
-      [theme.surface, mode === 'dark' ? '#183127' : '#ECFDF5']
+      [theme.surface, theme.successSoft]
     ),
   }));
 
@@ -116,7 +116,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
       <Animated.View style={[styles.glow, glowStyle]} />
 
       <AnimatedTouchable
-        style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }, cardBgStyle]}
+        style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadow }, cardBgStyle]}
         onPress={handleCopy}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -166,7 +166,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
           <View
             style={[
               styles.copyBadge,
-              isCopied && styles.copyBadgeActive,
+              { backgroundColor: isCopied ? theme.successSoft : theme.surfaceAlt },
             ]}
           >
             {isCopied ? (
@@ -191,8 +191,8 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
           >
             <Heart
               size={16}
-              color={snippet.isFavorite ? '#EF4444' : theme.textMuted}
-              fill={snippet.isFavorite ? '#EF4444' : 'transparent'}
+              color={snippet.isFavorite ? theme.danger : theme.textMuted}
+              fill={snippet.isFavorite ? theme.danger : 'transparent'}
               strokeWidth={2}
             />
           </TouchableOpacity>
@@ -225,14 +225,11 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
     padding: 14,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#DDD6FE',
     minHeight: 140,
     justifyContent: 'space-between',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.25,
         shadowRadius: 8,
@@ -267,14 +264,12 @@ const styles = StyleSheet.create({
     ...textFont(),
     fontSize: 15,
     fontWeight: '700',
-    color: '#1E1B2E',
     lineHeight: 22,
     marginBottom: 6,
   },
   content: {
     ...textFont(),
     fontSize: 13,
-    color: '#6B7280',
     lineHeight: 19,
     flex: 1,
   },
@@ -288,13 +283,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#F5F3FF',
     borderRadius: 8,
     paddingHorizontal: 7,
     paddingVertical: 4,
-  },
-  copyBadgeActive: {
-    backgroundColor: '#10B98120',
   },
   copyLabel: {
     ...textFont(),

@@ -14,7 +14,6 @@ import {
   Alert,
   Modal,
   ScrollView,
-  Platform,
 } from 'react-native';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 import {
@@ -41,7 +40,8 @@ import {
 } from 'lucide-react-native';
 import { useCategories } from '../hooks/useCategories';
 import { Category } from '../types';
-import { COLORS, CATEGORY_COLORS } from '../constants';
+import { COLORS, CATEGORY_COLORS, ANIMATION_DURATION } from '../constants';
+import { useTheme } from '../hooks/useTheme';
 
 // ── Icon catalogue ─────────────────────────────────────────────────────────
 
@@ -62,25 +62,26 @@ interface CategoryRowProps {
 }
 
 const CategoryRow: React.FC<CategoryRowProps> = ({ category, onEdit, onDelete }) => {
+  const { theme } = useTheme();
   const Icon = ICONS[category.icon] ?? Tag;
   return (
     <Animated.View
-      entering={FadeIn.duration(200)}
-      exiting={FadeOut.duration(150)}
+      entering={FadeIn.duration(ANIMATION_DURATION.normal)}
+      exiting={FadeOut.duration(ANIMATION_DURATION.fast)}
       layout={Layout.springify()}
-      style={styles.row}
+      style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >
       <View style={[styles.iconCircle, { backgroundColor: category.color + '25' }]}>
         <Icon size={18} color={category.color} strokeWidth={2} />
       </View>
-      <Text style={styles.rowName} numberOfLines={1}>{category.name}</Text>
+      <Text style={[styles.rowName, { color: theme.text }]} numberOfLines={1}>{category.name}</Text>
       <View style={[styles.colorSwatch, { backgroundColor: category.color }]} />
       <TouchableOpacity
         style={styles.rowBtn}
         onPress={() => onEdit(category)}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
-        <Pencil size={16} color={COLORS.textSecondary} />
+        <Pencil size={16} color={theme.textSecondary} />
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.rowBtn}
@@ -103,6 +104,7 @@ interface EditorModalProps {
 }
 
 const EditorModal: React.FC<EditorModalProps> = ({ visible, initial, onSave, onClose }) => {
+  const { theme } = useTheme();
   const [name, setName] = useState(initial?.name ?? '');
   const [color, setColor] = useState(initial?.color ?? CATEGORY_COLORS[0]);
   const [icon, setIcon] = useState(initial?.icon ?? 'tag');
@@ -128,13 +130,13 @@ const EditorModal: React.FC<EditorModalProps> = ({ visible, initial, onSave, onC
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={modal.overlay}>
-        <View style={modal.sheet}>
+      <View style={[modal.overlay, { backgroundColor: theme.overlay }]}>
+        <View style={[modal.sheet, { backgroundColor: theme.surface }]}>
           {/* Header */}
           <View style={modal.header}>
-            <Text style={modal.title}>{initial?.id ? 'Edit Category' : 'New Category'}</Text>
+            <Text style={[modal.title, { color: theme.text }]}>{initial?.id ? 'Edit Category' : 'New Category'}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <X size={22} color={COLORS.textSecondary} />
+              <X size={22} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -148,33 +150,37 @@ const EditorModal: React.FC<EditorModalProps> = ({ visible, initial, onSave, onC
             </View>
 
             {/* Name input */}
-            <Text style={modal.label}>Name</Text>
+            <Text style={[modal.label, { color: theme.textSecondary }]}>Name</Text>
             <TextInput
-              style={modal.input}
+              style={[modal.input, { backgroundColor: theme.surfaceAlt, borderColor: theme.border, color: theme.text }]}
               value={name}
               onChangeText={setName}
               placeholder="e.g. Finance"
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={theme.textMuted}
               maxLength={24}
               autoFocus
             />
 
             {/* Color picker */}
-            <Text style={modal.label}>Colour</Text>
+            <Text style={[modal.label, { color: theme.textSecondary }]}>Colour</Text>
             <View style={modal.colorGrid}>
               {CATEGORY_COLORS.map(c => (
                 <TouchableOpacity
                   key={c}
-                  style={[modal.colorDot, { backgroundColor: c }, color === c && modal.colorDotActive]}
+                  style={[
+                    modal.colorDot,
+                    { backgroundColor: c },
+                    color === c && [modal.colorDotActive, { borderColor: theme.onPrimary }],
+                  ]}
                   onPress={() => setColor(c)}
                 >
-                  {color === c && <Check size={14} color="#fff" strokeWidth={3} />}
+                  {color === c && <Check size={14} color={theme.onPrimary} strokeWidth={3} />}
                 </TouchableOpacity>
               ))}
             </View>
 
             {/* Icon picker */}
-            <Text style={modal.label}>Icon</Text>
+            <Text style={[modal.label, { color: theme.textSecondary }]}>Icon</Text>
             <View style={modal.iconGrid}>
               {ICON_KEYS.map(key => {
                 const Icon = ICONS[key];
@@ -184,11 +190,12 @@ const EditorModal: React.FC<EditorModalProps> = ({ visible, initial, onSave, onC
                     key={key}
                     style={[
                       modal.iconBtn,
+                      { borderColor: theme.border, backgroundColor: theme.surfaceAlt },
                       isActive && { backgroundColor: color, borderColor: color },
                     ]}
                     onPress={() => setIcon(key)}
                   >
-                    <Icon size={20} color={isActive ? '#fff' : COLORS.textSecondary} strokeWidth={2} />
+                    <Icon size={20} color={isActive ? theme.onPrimary : theme.textSecondary} strokeWidth={2} />
                   </TouchableOpacity>
                 );
               })}
@@ -197,12 +204,12 @@ const EditorModal: React.FC<EditorModalProps> = ({ visible, initial, onSave, onC
 
           {/* Save button */}
           <TouchableOpacity
-            style={[modal.saveBtn, !name.trim() && modal.saveBtnDisabled]}
+            style={[modal.saveBtn, { backgroundColor: theme.primary }, !name.trim() && modal.saveBtnDisabled]}
             onPress={handleSave}
             disabled={!name.trim()}
           >
-            <Check size={18} color="#fff" strokeWidth={2.5} />
-            <Text style={modal.saveBtnText}>Save Category</Text>
+            <Check size={18} color={theme.onPrimary} strokeWidth={2.5} />
+            <Text style={[modal.saveBtnText, { color: theme.onPrimary }]}>Save Category</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -213,6 +220,7 @@ const EditorModal: React.FC<EditorModalProps> = ({ visible, initial, onSave, onC
 // ── Main screen ────────────────────────────────────────────────────────────
 
 export const ManageCategoriesScreen: React.FC = () => {
+  const { theme } = useTheme();
   const { categories, createCategory, updateCategory, deleteCategory } = useCategories();
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingCat, setEditingCat] = useState<Partial<Category> | null>(null);
@@ -248,7 +256,7 @@ export const ManageCategoriesScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <FlatList
         data={categories}
         keyExtractor={item => item.id}
@@ -259,20 +267,20 @@ export const ManageCategoriesScreen: React.FC = () => {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🗂️</Text>
-            <Text style={styles.emptyTitle}>No categories yet</Text>
-            <Text style={styles.emptySubtitle}>Tap + to create your first one</Text>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>No categories yet</Text>
+            <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>Tap + to create your first one</Text>
           </View>
         }
         ListHeaderComponent={
-          <Text style={styles.sectionHeader}>
+          <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>
             {categories.length} categor{categories.length === 1 ? 'y' : 'ies'}
           </Text>
         }
       />
 
       {/* FAB */}
-      <TouchableOpacity style={styles.fab} onPress={openNew} activeOpacity={0.85}>
-        <Plus size={26} color="#fff" strokeWidth={2.5} />
+      <TouchableOpacity style={[styles.fab, { backgroundColor: theme.primary, shadowColor: theme.primary }]} onPress={openNew} activeOpacity={0.85}>
+        <Plus size={26} color={theme.onPrimary} strokeWidth={2.5} />
       </TouchableOpacity>
 
       <EditorModal
@@ -288,39 +296,39 @@ export const ManageCategoriesScreen: React.FC = () => {
 // ── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EDE9F6' },
+  container: { flex: 1 },
   list: { padding: 16, paddingBottom: 100 },
-  sectionHeader: { fontSize: 12, fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 },
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#DDD6FE', padding: 14, marginBottom: 10, gap: 12 },
+  sectionHeader: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10, gap: 12 },
   iconCircle: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  rowName: { flex: 1, fontSize: 15, fontWeight: '600', color: '#1E1B2E' },
+  rowName: { flex: 1, fontSize: 15, fontWeight: '600' },
   colorSwatch: { width: 12, height: 12, borderRadius: 6 },
   rowBtn: { padding: 4 },
   empty: { alignItems: 'center', paddingTop: 80, gap: 12 },
   emptyIcon: { fontSize: 48 },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: '#1E1B2E' },
-  emptySubtitle: { fontSize: 14, color: '#6B7280' },
-  fab: { position: 'absolute', bottom: 32, right: 24, width: 58, height: 58, borderRadius: 29, backgroundColor: '#7C3AED', alignItems: 'center', justifyContent: 'center', shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
+  emptyTitle: { fontSize: 20, fontWeight: '700' },
+  emptySubtitle: { fontSize: 14 },
+  fab: { position: 'absolute', bottom: 32, right: 24, width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
 });
 
 const modal = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: '#00000080', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '90%' },
+  overlay: { flex: 1, justifyContent: 'flex-end' },
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '90%' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 18, fontWeight: '800', color: '#1E1B2E' },
+  title: { fontSize: 18, fontWeight: '800' },
   preview: { flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1.5, padding: 16, marginBottom: 20, gap: 14 },
   previewIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   previewName: { fontSize: 17, fontWeight: '700' },
-  label: { fontSize: 12, fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 4 },
-  input: { backgroundColor: '#F5F3FF', borderRadius: 12, borderWidth: 1, borderColor: '#DDD6FE', padding: 14, color: '#1E1B2E', fontSize: 15, marginBottom: 16 },
+  label: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 4 },
+  input: { borderRadius: 12, borderWidth: 1, padding: 14, fontSize: 15, marginBottom: 16 },
   colorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   colorDot: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  colorDotActive: { borderWidth: 3, borderColor: '#fff' },
+  colorDotActive: { borderWidth: 3 },
   iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
-  iconBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1.5, borderColor: '#DDD6FE', backgroundColor: '#F5F3FF', alignItems: 'center', justifyContent: 'center' },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, padding: 16, gap: 10, marginTop: 4, backgroundColor: '#7C3AED' },
+  iconBtn: { width: 44, height: 44, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, padding: 16, gap: 10, marginTop: 4 },
   saveBtnDisabled: { opacity: 0.4 },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  saveBtnText: { fontSize: 16, fontWeight: '700' },
 });
 
 export default ManageCategoriesScreen;

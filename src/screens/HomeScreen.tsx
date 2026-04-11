@@ -8,6 +8,8 @@ import {
   Dimensions,
   ActivityIndicator,
   StatusBar,
+  Modal,
+  Pressable,
 } from 'react-native';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
@@ -19,7 +21,7 @@ import { CategoryChipBar } from '../components/common/CategoryChipBar';
 import { SearchBar } from '../components/common/SearchBar';
 import { useSnippets } from '../hooks/useSnippets';
 import { useCategories } from '../hooks/useCategories';
-import { COLORS } from '../constants';
+import { ANIMATION_DURATION } from '../constants';
 import { textFont } from '../constants/typography';
 import { RootStackParamList, Snippet } from '../types';
 import { useTheme } from '../hooks/useTheme';
@@ -43,6 +45,8 @@ export const HomeScreen: React.FC = () => {
     activeCategory,
     searchQuery,
     setSearchQuery,
+    premiumPromptVisible,
+    dismissPremiumPrompt,
     refresh,
   } = useSnippets();
   const { categories } = useCategories();
@@ -63,7 +67,11 @@ export const HomeScreen: React.FC = () => {
 
   const renderItem = useCallback(
     ({ item }: { item: Snippet }) => (
-      <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} layout={Layout.springify()}>
+      <Animated.View
+        entering={FadeIn.duration(ANIMATION_DURATION.normal)}
+        exiting={FadeOut.duration(ANIMATION_DURATION.fast)}
+        layout={Layout.springify()}
+      >
         <SnippetCard
           snippet={item}
           isCopied={copiedId === item.id}
@@ -91,6 +99,20 @@ export const HomeScreen: React.FC = () => {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
 
+      <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search snippets..." />
+
+      <CategoryChipBar
+        categories={categories}
+        activeId={activeCategory}
+        onSelect={filterByCategory}
+      />
+
+      {!isLoading && (
+        <Text style={[styles.count, { color: theme.textSecondary }]}>
+          {snippets.length} snippet{snippets.length !== 1 ? 's' : ''}
+        </Text>
+      )}
+
       <FlatList
         data={snippets}
         keyExtractor={item => item.id}
@@ -100,23 +122,6 @@ export const HomeScreen: React.FC = () => {
         contentContainerStyle={styles.list}
         onRefresh={refresh}
         refreshing={isLoading && snippets.length > 0}
-        ListHeaderComponent={
-          <>
-            <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search snippets..." />
-
-            <CategoryChipBar
-              categories={categories}
-              activeId={activeCategory}
-              onSelect={filterByCategory}
-            />
-
-            {!isLoading && (
-              <Text style={[styles.count, { color: theme.textSecondary }]}>
-                {snippets.length} snippet{snippets.length !== 1 ? 's' : ''}
-              </Text>
-            )}
-          </>
-        }
         ListEmptyComponent={
           isLoading ? (
             <ActivityIndicator style={styles.loader} color={theme.primary} size="large" />
@@ -127,12 +132,46 @@ export const HomeScreen: React.FC = () => {
       />
 
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { backgroundColor: theme.primary, shadowColor: theme.primary }]}
         onPress={() => navigation.navigate('AddSnippet', {})}
         activeOpacity={0.85}
       >
-        <Plus size={26} color={COLORS.white} strokeWidth={2.5} />
+        <Plus size={26} color={theme.onPrimary} strokeWidth={2.5} />
       </TouchableOpacity>
+
+      <Modal
+        visible={premiumPromptVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: theme.overlay }]}>
+          <Pressable style={StyleSheet.absoluteFill} />
+          <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>You reached 10 snippets</Text>
+            <Text style={[styles.modalBody, { color: theme.textSecondary }]}>
+              Free Qoppy now pauses at 10 saved snippets. Upgrade for unlimited snippets and payment features, or close this message and keep using your current library.
+            </Text>
+            <TouchableOpacity
+              style={[styles.modalPrimaryButton, { backgroundColor: theme.primary }]}
+              onPress={async () => {
+                await dismissPremiumPrompt();
+                navigation.navigate('Paywall', { source: 'limit-modal' });
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.modalPrimaryText, { color: theme.onPrimary }]}>Go Premium</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalSecondaryButton, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
+              onPress={() => void dismissPremiumPrompt()}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.modalSecondaryText, { color: theme.text }]}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -151,7 +190,6 @@ const styles = StyleSheet.create({
   count: {
     ...textFont(),
     fontSize: 13,
-    color: '#6B7280',
     paddingHorizontal: 20,
     paddingBottom: 4,
     fontWeight: '600',
@@ -167,25 +205,66 @@ const styles = StyleSheet.create({
     ...textFont(true),
     fontSize: 40,
     marginBottom: 16,
-    color: '#7C3AED',
   },
   emptyTitle: {
     ...textFont(),
     fontSize: 22,
     fontWeight: '800',
-    color: '#1E1B2E',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtitle: {
     ...textFont(),
     fontSize: 15,
-    color: '#6B7280',
     textAlign: 'center',
     lineHeight: 23,
   },
   loader: {
     marginTop: 80,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 22,
+  },
+  modalTitle: {
+    ...textFont(),
+    fontSize: 22,
+    fontWeight: '900',
+    marginBottom: 10,
+  },
+  modalBody: {
+    ...textFont(),
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 18,
+  },
+  modalPrimaryButton: {
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalPrimaryText: {
+    ...textFont(),
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  modalSecondaryButton: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalSecondaryText: {
+    ...textFont(),
+    fontSize: 15,
+    fontWeight: '700',
   },
   fab: {
     position: 'absolute',
@@ -194,10 +273,8 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: '#7C3AED',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7C3AED',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.45,
     shadowRadius: 12,

@@ -3,10 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View, LogBox } from 'react-native';
+import { ActivityIndicator, View, LogBox, Image, Text, StyleSheet } from 'react-native';
 
 import { db } from '../services/database';
-import { COLORS } from '../constants';
 import { RootStackParamList } from '../types';
 
 import OnboardingScreen from '../screens/OnboardingScreen';
@@ -24,6 +23,13 @@ import { useTheme } from '../hooks/useTheme';
 LogBox.ignoreLogs(['Non-serializable values were found in the navigation state']);
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const LaunchSplash = ({ backgroundColor, textColor }: { backgroundColor: string; textColor: string }) => (
+  <View style={[splashStyles.container, { backgroundColor }]}>
+    <Image source={require('../../assets/splash.png')} style={splashStyles.logo} resizeMode="contain" />
+    <Text style={[splashStyles.title, { color: textColor }]}>Qoppy</Text>
+  </View>
+);
 
 export const RootNavigator: React.FC = () => {
   const { theme, mode } = useTheme();
@@ -47,11 +53,14 @@ export const RootNavigator: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
-        await db.init();
+        await Promise.all([
+          db.init(),
+          new Promise(resolve => setTimeout(resolve, 1200)),
+        ]);
         const onboarded = await db.getPreference('onboarded');
         setInitialRoute(onboarded === 'true' ? 'Main' : 'Onboarding');
       } catch {
-        console.error('Database initialization failed.');
+        setInitialRoute('Onboarding');
       } finally {
         setIsReady(true);
       }
@@ -59,11 +68,7 @@ export const RootNavigator: React.FC = () => {
   }, []);
 
   if (!isReady) {
-    return (
-      <View style={{ flex: 1, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={theme.primary} size="large" />
-      </View>
-    );
+    return <LaunchSplash backgroundColor={theme.background} textColor={theme.text} />;
   }
 
   const ProtectedMainScreen = () => (
@@ -102,7 +107,8 @@ export const RootNavigator: React.FC = () => {
               headerShadowVisible: false,
               headerTitleStyle: { fontWeight: '700', fontSize: 17, color: theme.text },
               contentStyle: { backgroundColor: theme.background },
-              animation: 'slide_from_right',
+              animation: 'fade',
+              animationDuration: 250,
             }}
           >
             <Stack.Screen
@@ -143,3 +149,22 @@ export const RootNavigator: React.FC = () => {
 };
 
 export default RootNavigator;
+
+const splashStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  logo: {
+    width: 220,
+    height: 220,
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
+});

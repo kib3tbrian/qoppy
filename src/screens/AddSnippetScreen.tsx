@@ -18,9 +18,9 @@ import { Save, Trash2 } from 'lucide-react-native';
 
 import { useSnippets } from '../hooks/useSnippets';
 import { useCategories } from '../hooks/useCategories';
-import { COLORS } from '../constants';
 import { RootStackParamList } from '../types';
 import { db } from '../services/database';
+import { useTheme } from '../hooks/useTheme';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, 'AddSnippet'>;
@@ -28,6 +28,7 @@ type RouteType = RouteProp<RootStackParamList, 'AddSnippet'>;
 export const AddSnippetScreen: React.FC = () => {
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RouteType>();
+  const { theme } = useTheme();
   const { snippetId } = route.params ?? {};
   const isEditing = Boolean(snippetId);
 
@@ -36,8 +37,12 @@ export const AddSnippetScreen: React.FC = () => {
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('other');
   const [isSaving, setIsSaving] = useState(false);
+
+  const normalizedContent = content.replace(/[\s-]/g, '');
+  const hasCardNumber = /\b\d{13,19}\b/.test(normalizedContent);
+  const hasSensitiveCredentialHint = /(password|passcode|otp|2fa|secret|api key|token)/i.test(content);
 
   // Load existing snippet for editing
   useEffect(() => {
@@ -46,7 +51,7 @@ export const AddSnippetScreen: React.FC = () => {
         if (s) {
           setTitle(s.title);
           setContent(s.content);
-          setSelectedCategory(s.categoryId);
+          setSelectedCategory(s.categoryId ?? 'other');
         }
       });
     }
@@ -58,16 +63,20 @@ export const AddSnippetScreen: React.FC = () => {
       headerRight: isEditing
         ? () => (
             <TouchableOpacity onPress={handleDelete} style={{ padding: 8 }}>
-              <Trash2 size={20} color={COLORS.danger} />
+              <Trash2 size={20} color={theme.danger} />
             </TouchableOpacity>
           )
         : undefined,
     });
-  }, [isEditing]);
+  }, [isEditing, navigation, theme.danger]);
 
   const handleSave = async () => {
     if (!title.trim() || !content.trim()) {
       Alert.alert('Missing fields', 'Please fill in both title and content.');
+      return;
+    }
+    if (hasCardNumber) {
+      Alert.alert('Sensitive data blocked', 'Do not store full credit card numbers in Qoppy.');
       return;
     }
     setIsSaving(true);
@@ -106,59 +115,65 @@ export const AddSnippetScreen: React.FC = () => {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.label}>Title</Text>
+        <Text style={[styles.label, { color: theme.textSecondary }]}>Title</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: theme.surfaceAlt, borderColor: theme.border, color: theme.text }]}
           value={title}
           onChangeText={setTitle}
           placeholder="e.g. Home Address"
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={theme.textMuted}
           maxLength={60}
         />
 
-        <Text style={styles.label}>Content</Text>
+        <Text style={[styles.label, { color: theme.textSecondary }]}>Content</Text>
         <TextInput
-          style={[styles.input, styles.textarea]}
+          style={[styles.input, styles.textarea, { backgroundColor: theme.surfaceAlt, borderColor: theme.border, color: theme.text }]}
           value={content}
           onChangeText={setContent}
           placeholder="Paste or type the text you want to copy…"
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={theme.textMuted}
           multiline
           textAlignVertical="top"
         />
+        {(hasCardNumber || hasSensitiveCredentialHint) && (
+          <View style={[styles.noticeCard, { backgroundColor: theme.surface, borderColor: hasCardNumber ? theme.danger : theme.border }]}>
+            <Text style={[styles.noticeTitle, { color: hasCardNumber ? theme.danger : theme.text }]}>
+              {hasCardNumber ? 'Sensitive card data detected' : 'Sensitive credential reminder'}
+            </Text>
+            <Text style={[styles.noticeText, { color: theme.textSecondary }]}>
+              {hasCardNumber
+                ? 'Qoppy should not be used to store full card numbers.'
+                : 'Avoid storing passwords, authentication codes, or similar secrets in this app.'}
+            </Text>
+          </View>
+        )}
 
-        <Text style={styles.label}>Category</Text>
+        <Text style={[styles.label, { color: theme.textSecondary }]}>Category</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryRow}>
-          <TouchableOpacity
-            style={[styles.catChip, selectedCategory === null && styles.catChipActive]}
-            onPress={() => setSelectedCategory(null)}
-          >
-            <Text style={[styles.catChipText, selectedCategory === null && styles.catChipTextActive]}>None</Text>
-          </TouchableOpacity>
           {categories.map(cat => (
             <TouchableOpacity
               key={cat.id}
               style={[
                 styles.catChip,
-                { borderColor: cat.color },
+                { borderColor: cat.color, backgroundColor: theme.surfaceAlt },
                 selectedCategory === cat.id && { backgroundColor: cat.color },
               ]}
               onPress={() => setSelectedCategory(cat.id)}
             >
-              <Text style={[styles.catChipText, { color: selectedCategory === cat.id ? '#fff' : cat.color }]}>
+              <Text style={[styles.catChipText, { color: selectedCategory === cat.id ? theme.onPrimary : cat.color }]}>
                 {cat.name}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={isSaving}>
-          <Save size={18} color="#fff" />
-          <Text style={styles.saveBtnText}>{isSaving ? 'Saving…' : isEditing ? 'Update Snippet' : 'Save Snippet'}</Text>
+        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: theme.primary }]} onPress={handleSave} disabled={isSaving}>
+          <Save size={18} color={theme.onPrimary} />
+          <Text style={[styles.saveBtnText, { color: theme.onPrimary }]}>{isSaving ? 'Saving…' : isEditing ? 'Update Snippet' : 'Save Snippet'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -166,18 +181,19 @@ export const AddSnippetScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EDE9F6' },
+  container: { flex: 1 },
   content: { padding: 20, gap: 8 },
-  label: { fontSize: 13, fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 12, marginBottom: 6 },
-  input: { backgroundColor: '#F5F3FF', borderRadius: 14, borderWidth: 1, borderColor: '#DDD6FE', padding: 14, color: '#1E1B2E', fontSize: 15 },
+  label: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 12, marginBottom: 6 },
+  input: { borderRadius: 14, borderWidth: 1, padding: 14, fontSize: 15 },
   textarea: { minHeight: 120, paddingTop: 14 },
+  noticeCard: { borderRadius: 14, borderWidth: 1, padding: 14, marginTop: 4, marginBottom: 8 },
+  noticeTitle: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
+  noticeText: { fontSize: 13, lineHeight: 19 },
   categoryRow: { flexDirection: 'row', marginBottom: 8 },
-  catChip: { borderRadius: 20, borderWidth: 1.5, borderColor: '#DDD6FE', backgroundColor: '#F5F3FF', paddingHorizontal: 14, paddingVertical: 8, marginRight: 8 },
-  catChipActive: { backgroundColor: '#7C3AED', borderColor: '#7C3AED' },
-  catChipText: { fontSize: 13, fontWeight: '600', color: '#6B7280' },
-  catChipTextActive: { color: '#fff' },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#7C3AED', borderRadius: 16, padding: 16, marginTop: 24, gap: 10 },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  catChip: { borderRadius: 20, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8 },
+  catChipText: { fontSize: 13, fontWeight: '600' },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 16, padding: 16, marginTop: 24, gap: 10 },
+  saveBtnText: { fontSize: 16, fontWeight: '700' },
 });
 
 export default AddSnippetScreen;

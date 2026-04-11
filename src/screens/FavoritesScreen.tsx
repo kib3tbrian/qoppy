@@ -15,7 +15,6 @@ import { SnippetCard } from '../components/cards/SnippetCard';
 import { db } from '../services/database';
 import { useSnippets } from '../hooks/useSnippets';
 import { Snippet, RootStackParamList } from '../types';
-import { COLORS } from '../constants';
 import { textFont } from '../constants/typography';
 import { useTheme } from '../hooks/useTheme';
 
@@ -99,10 +98,10 @@ export const FavoritesScreen: React.FC = () => {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>{"<3"}</Text>
+            <Text style={[styles.emptyIcon, { color: theme.primary }]}>♡</Text>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>No favorites yet</Text>
             <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
-              Tap the heart on any snippet to save it here.
+              Save the snippets you reach for most and they’ll show up here for quick copying.
             </Text>
           </View>
         }
@@ -112,22 +111,21 @@ export const FavoritesScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EDE9F6' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EDE9F6' },
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { paddingBottom: 112 },
   row: { justifyContent: 'flex-start', paddingHorizontal: 8 },
   count: {
     ...textFont(),
     fontSize: 13,
     fontWeight: '600',
-    color: COLORS.textMuted,
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
   empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 32, gap: 12 },
-  emptyIcon: { ...textFont(true), fontSize: 44, color: '#EF4444' },
-  emptyTitle: { ...textFont(), fontSize: 22, fontWeight: '800', color: COLORS.text },
-  emptySubtitle: { ...textFont(), fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 23 },
+  emptyIcon: { ...textFont(true), fontSize: 44 },
+  emptyTitle: { ...textFont(), fontSize: 22, fontWeight: '800' },
+  emptySubtitle: { ...textFont(), fontSize: 15, textAlign: 'center', lineHeight: 23 },
 });
 
 export default FavoritesScreen;

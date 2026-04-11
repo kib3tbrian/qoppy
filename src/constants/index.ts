@@ -40,6 +40,7 @@ export const DEFAULT_CATEGORIES = [
   { id: 'personal', name: 'Personal', color: '#6366F1', icon: 'user' },
   { id: 'work', name: 'Work', color: '#3B82F6', icon: 'briefcase' },
   { id: 'finance', name: 'Finance', color: '#10B981', icon: 'credit-card' },
+  { id: 'other', name: 'Other', color: '#8B5CF6', icon: 'tag' },
   { id: 'social', name: 'Social', color: '#EC4899', icon: 'heart' },
   { id: 'travel', name: 'Travel', color: '#F59E0B', icon: 'map-pin' },
 ];
@@ -50,4 +51,8 @@ export const ANIMATION_DURATION = {
   fast: 150,
   normal: 250,
   slow: 400,
+};
+
+export const TAB_TRANSITION_CONFIG = {
+  duration: ANIMATION_DURATION.normal,
 };

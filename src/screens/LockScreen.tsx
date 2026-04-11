@@ -12,9 +12,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../hooks/useAuth';
 import { validateCredential } from '../services/authValidation';
-import { styles } from '../styles';
+import { createAppStyles } from '../styles';
+import { useTheme } from '../hooks/useTheme';
 
 export const LockScreen: React.FC = () => {
+  const { theme } = useTheme();
+  const styles = createAppStyles(theme);
   const {
     unlockWithSecret,
     unlockWithBiometric,

@@ -23,7 +23,10 @@ interface UseSnippetsReturn {
   createSnippet: (data: SnippetInsert) => Promise<Snippet>;
   updateSnippet: (data: SnippetUpdate) => Promise<void>;
   deleteSnippet: (id: string) => Promise<void>;
+  deleteAllSnippets: () => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
+  premiumPromptVisible: boolean;
+  dismissPremiumPrompt: () => Promise<void>;
   refresh: () => Promise<void>;
   filterByCategory: (categoryId: string | null) => void;
   searchQuery: string;
@@ -41,6 +44,7 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [premiumPromptVisible, setPremiumPromptVisible] = useState(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -122,6 +126,12 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const created = await db.createSnippet(data);
     setAllSnippets(prev => [created, ...prev]);
+    if (isPremiumEnabled !== 'true' && allSnippets.length + 1 >= FREE_SNIPPET_LIMIT) {
+      const hasSeenPrompt = await db.getPreference('premium_prompt_seen', 'false');
+      if (hasSeenPrompt !== 'true') {
+        setPremiumPromptVisible(true);
+      }
+    }
     setError(null);
     return created;
   }, [allSnippets.length]);
@@ -136,6 +146,12 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setAllSnippets(prev => prev.filter(s => s.id !== id));
   }, []);
 
+  const deleteAllSnippets = useCallback(async () => {
+    await db.deleteAllSnippets();
+    setAllSnippets([]);
+    setCopiedId(null);
+  }, []);
+
   const toggleFavorite = useCallback(async (id: string) => {
     const newVal = await db.toggleFavorite(id);
     await runHaptic(() => Haptics.selectionAsync());
@@ -148,6 +164,11 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setActiveCategory(categoryId);
   }, []);
 
+  const dismissPremiumPrompt = useCallback(async () => {
+    setPremiumPromptVisible(false);
+    await db.setPreference('premium_prompt_seen', 'true');
+  }, []);
+
   const value = useMemo<UseSnippetsReturn>(() => ({
     snippets,
     isLoading,
@@ -157,7 +178,10 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     createSnippet,
     updateSnippet,
     deleteSnippet,
+    deleteAllSnippets,
     toggleFavorite,
+    premiumPromptVisible,
+    dismissPremiumPrompt,
     refresh,
     filterByCategory,
     searchQuery,
@@ -169,9 +193,12 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     copySnippet,
     createSnippet,
     deleteSnippet,
+    deleteAllSnippets,
+    dismissPremiumPrompt,
     error,
     filterByCategory,
     isLoading,
+    premiumPromptVisible,
     refresh,
     searchQuery,
     snippets,

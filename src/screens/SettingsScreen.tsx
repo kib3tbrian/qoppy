@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,10 @@ import {
   Switch,
   Alert,
   Linking,
+  Share,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useAuth } from '../hooks/useAuth';
 import {
   Crown,
   Tag,
@@ -27,12 +27,19 @@ import {
   Lock,
   Fingerprint,
   ShieldOff,
+  Share2,
+  Bug,
+  Moon,
+  Sun,
+  Smartphone,
 } from 'lucide-react-native';
+import { useAuth } from '../hooks/useAuth';
 import { db } from '../services/database';
 import { COLORS } from '../constants';
 import { textFont } from '../constants/typography';
 import { RootStackParamList } from '../types';
-import { useTheme } from '../hooks/useTheme';
+import { useTheme, AppThemePreference } from '../hooks/useTheme';
+import { useSnippets } from '../hooks/useSnippets';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -56,7 +63,7 @@ const Row: React.FC<RowProps> = ({ icon: Icon, iconColor = COLORS.primary, label
       disabled={!onPress}
       activeOpacity={onPress ? 0.7 : 1}
     >
-      <View style={[styles.rowIcon, { backgroundColor: iconColor + '18' }]}>
+      <View style={[styles.rowIcon, { backgroundColor: `${iconColor}18` }]}>
         <Icon size={18} color={danger ? theme.danger : iconColor} strokeWidth={2} />
       </View>
       <View style={styles.rowText}>
@@ -79,9 +86,20 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
   );
 };
 
+const themeOptions: Array<{
+  key: AppThemePreference;
+  label: string;
+  icon: React.ComponentType<any>;
+}> = [
+  { key: 'light', label: 'Light', icon: Sun },
+  { key: 'dark', label: 'Dark', icon: Moon },
+  { key: 'system', label: 'System', icon: Smartphone },
+];
+
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NavProp>();
-  const { theme } = useTheme();
+  const { theme, preference, setThemeMode } = useTheme();
+  const { deleteAllSnippets } = useSnippets();
   const {
     isProtectionEnabled,
     isBiometricAvailable,
@@ -92,14 +110,26 @@ export const SettingsScreen: React.FC = () => {
   const [snippetCount, setSnippetCount] = useState(0);
   const [hapticEnabled, setHapticEnabled] = useState(true);
 
-  useEffect(() => {
+  const loadUsage = useCallback(() => {
     db.getSnippetCount().then(setSnippetCount);
     db.getPreference('haptic', 'true').then(v => setHapticEnabled(v === 'true'));
   }, []);
 
-  const handleToggleHaptic = async (val: boolean) => {
-    setHapticEnabled(val);
-    await db.setPreference('haptic', val ? 'true' : 'false');
+  useFocusEffect(
+    useCallback(() => {
+      loadUsage();
+    }, [loadUsage])
+  );
+
+  const handleShareApp = async () => {
+    await Share.share({
+      message: 'Try Qoppy for saving and copying the snippets you reuse every day.',
+    });
+  };
+
+  const handleToggleHaptic = async (value: boolean) => {
+    setHapticEnabled(value);
+    await db.setPreference('haptic', value ? 'true' : 'false');
   };
 
   const handleClearAll = () => {
@@ -112,21 +142,13 @@ export const SettingsScreen: React.FC = () => {
           text: 'Delete all',
           style: 'destructive',
           onPress: async () => {
-            const all = await db.getAllSnippets();
-            for (const snippet of all) {
-              await db.deleteSnippet(snippet.id);
-            }
+            await deleteAllSnippets();
             setSnippetCount(0);
             Alert.alert('Done', 'All snippets deleted.');
           },
         },
       ]
     );
-  };
-
-  const handleResetOnboarding = async () => {
-    await db.setPreference('onboarded', 'false');
-    Alert.alert('Reset', 'Restart the app to see the onboarding again.');
   };
 
   const handleDisableProtection = () => {
@@ -147,24 +169,77 @@ export const SettingsScreen: React.FC = () => {
     );
   };
 
+  const handleAppLockSwitch = (nextValue: boolean) => {
+    if (nextValue) {
+      navigation.navigate('SetupPIN', { fromSettings: true });
+      return;
+    }
+
+    handleDisableProtection();
+  };
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={styles.content}>
       <TouchableOpacity
-        style={[styles.premiumBanner, { backgroundColor: theme.surfaceAlt, borderColor: theme.primary }]}
-        onPress={() => navigation.navigate('Paywall')}
-        activeOpacity={0.85}
+        style={[styles.premiumHero, { backgroundColor: theme.primary, shadowColor: theme.primary }]}
+        onPress={() => navigation.navigate('Paywall', { source: 'settings' })}
+        activeOpacity={0.88}
       >
-        <Crown size={22} color={theme.primary} fill={`${theme.primary}20`} />
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.premiumTitle, { color: theme.primary }]}>Upgrade to Premium</Text>
-          <Text style={[styles.premiumSub, { color: theme.primary }]}>Free includes up to 10 snippets. Premium unlocks unlimited snippets and payment boilerplate for card and crypto upgrades.</Text>
+        <View style={styles.premiumHeader}>
+          <Crown size={26} color={theme.onPrimary} />
+          <Text style={[styles.premiumTitle, { color: theme.onPrimary }]}>Go Premium</Text>
         </View>
-        <ChevronRight size={18} color={theme.primary} />
+        <Text style={[styles.premiumSub, { color: `${theme.onPrimary}DD` }]}>
+          Unlock unlimited snippets, Google Pay support, crypto options, and future backup features.
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.shareCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        onPress={() => void handleShareApp()}
+        activeOpacity={0.88}
+      >
+        <View style={[styles.shareIconWrap, { backgroundColor: theme.primarySoft }]}>
+          <Share2 size={20} color={theme.primary} />
+        </View>
+        <View style={styles.shareTextWrap}>
+          <Text style={[styles.shareTitle, { color: theme.text }]}>Share the app</Text>
+          <Text style={[styles.shareSub, { color: theme.textSecondary }]}>Invite someone with the native share sheet.</Text>
+        </View>
+        <ChevronRight size={18} color={theme.textMuted} />
       </TouchableOpacity>
 
       <Section title="Usage">
         <Row icon={Info} iconColor={COLORS.primary} label="Snippets stored" sublabel={`${snippetCount} snippets saved`} />
-        <Row icon={Tag} iconColor="#F59E0B" label="Manage categories" onPress={() => navigation.navigate('ManageCategories')} />
+        <Row icon={Tag} iconColor={COLORS.secondary} label="Manage categories" onPress={() => navigation.navigate('ManageCategories')} />
+      </Section>
+
+      <Section title="Appearance">
+        <View style={styles.themeRow}>
+          {themeOptions.map(option => {
+            const Icon = option.icon;
+            const active = preference === option.key;
+            return (
+              <TouchableOpacity
+                key={option.key}
+                style={[
+                  styles.themeOption,
+                  {
+                    backgroundColor: active ? theme.primary : theme.surfaceAlt,
+                    borderColor: active ? theme.primary : theme.border,
+                  },
+                ]}
+                onPress={() => void setThemeMode(option.key)}
+                activeOpacity={0.85}
+              >
+                <Icon size={16} color={active ? theme.onPrimary : theme.textSecondary} />
+                <Text style={[styles.themeOptionText, { color: active ? theme.onPrimary : theme.text }]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </Section>
 
       <Section title="Preferences">
@@ -178,7 +253,7 @@ export const SettingsScreen: React.FC = () => {
               value={hapticEnabled}
               onValueChange={handleToggleHaptic}
               trackColor={{ true: theme.primary, false: theme.border }}
-              thumbColor={COLORS.white}
+              thumbColor={theme.onPrimary}
             />
           }
         />
@@ -187,8 +262,8 @@ export const SettingsScreen: React.FC = () => {
       <Section title="App Lock">
         <Row
           icon={Lock}
-          iconColor="#7C3AED"
-          label={isProtectionEnabled ? 'Update app lock' : 'Set up app lock'}
+          iconColor={theme.primary}
+          label="App Lock"
           sublabel={
             isProtectionEnabled
               ? authMethod === 'password'
@@ -200,9 +275,17 @@ export const SettingsScreen: React.FC = () => {
                   : isBiometricEnabled
                     ? 'PIN lock is enabled with biometric unlock.'
                     : 'PIN lock is enabled.'
-              : 'Choose a 4-digit PIN, 6-character password, or biometric unlock.'
+              : 'Turn on PIN or biometric lock for app open.'
           }
           onPress={() => navigation.navigate('SetupPIN', { fromSettings: true })}
+          right={
+            <Switch
+              value={isProtectionEnabled}
+              onValueChange={handleAppLockSwitch}
+              trackColor={{ true: theme.primary, false: theme.border }}
+              thumbColor={theme.onPrimary}
+            />
+          }
         />
         {isBiometricAvailable && (
           <Row
@@ -230,7 +313,23 @@ export const SettingsScreen: React.FC = () => {
 
       <Section title="Data">
         <Row icon={Trash2} label="Clear all snippets" danger onPress={handleClearAll} />
-        <Row icon={Shield} iconColor={COLORS.textMuted} label="Reset onboarding" onPress={handleResetOnboarding} />
+        <View style={[styles.noticeCard, { borderTopColor: theme.border }]}>
+          <Text style={[styles.noticeLine, { color: theme.text }]}>This app uses local-first storage. Your snippets are stored on your device only unless you upgrade to cloud backup.</Text>
+          <Text style={[styles.noticeLine, { color: theme.text }]}>Do not store passwords, full credit card numbers, or government ID PINs.</Text>
+          <Text style={[styles.noticeLine, { color: theme.text }]}>The app is not designed for storing sensitive authentication credentials.</Text>
+          <Text style={[styles.noticeLine, { color: theme.text }]}>You are responsible for the content you copy and store.</Text>
+          <Text style={[styles.noticeLine, { color: theme.text }]}>For GDPR: no clipboard content is sent to external servers on the free plan.</Text>
+        </View>
+      </Section>
+
+      <Section title="Support">
+        <Row
+          icon={Bug}
+          iconColor={COLORS.secondary}
+          label="Report a Bug or Idea"
+          sublabel="Send feedback by email"
+          onPress={() => Linking.openURL('mailto:support@qoppy.app?subject=Qoppy%20Bug%20or%20Idea')}
+        />
       </Section>
 
       <Section title="Legal">
@@ -250,13 +349,6 @@ export const SettingsScreen: React.FC = () => {
 
       <Section title="About">
         <Row
-          icon={Info}
-          iconColor={COLORS.secondary}
-          label="About Us"
-          sublabel="Nogeybix Labs is the team behind Qoppy."
-          onPress={() => Linking.openURL('https://nogeybix.com/about')}
-        />
-        <Row
           icon={Mail}
           iconColor={COLORS.primary}
           label="Contact Us"
@@ -272,26 +364,104 @@ export const SettingsScreen: React.FC = () => {
         />
       </Section>
 
-      <Text style={styles.version}>Qoppy v1.0.0</Text>
+      <Text style={[styles.version, { color: theme.textSecondary }]}>Qoppy v1.0.0</Text>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#EDE9F6' },
+  container: { flex: 1 },
   content: { padding: 16, paddingBottom: 60 },
-  premiumBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F3FF', borderRadius: 18, borderWidth: 1.5, borderColor: '#7C3AED', padding: 16, gap: 14, marginBottom: 24 },
-  premiumTitle: { ...textFont(), fontSize: 17, fontWeight: '800', color: '#7C3AED' },
-  premiumSub: { ...textFont(), fontSize: 14, color: '#7C3AED', marginTop: 2, lineHeight: 20 },
+  premiumHero: {
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 14,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.24,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  premiumHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  premiumTitle: {
+    ...textFont(),
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  premiumSub: {
+    ...textFont(),
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '700',
+  },
+  shareCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+    marginBottom: 24,
+  },
+  shareIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareTextWrap: {
+    flex: 1,
+  },
+  shareTitle: {
+    ...textFont(),
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  shareSub: {
+    ...textFont(),
+    fontSize: 13,
+    marginTop: 2,
+    lineHeight: 19,
+  },
   section: { marginBottom: 24 },
-  sectionTitle: { ...textFont(), fontSize: 13, fontWeight: '800', color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, paddingLeft: 4 },
-  sectionCard: { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#DDD6FE', overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 14, borderBottomWidth: 1, borderBottomColor: '#DDD6FE' },
+  sectionTitle: { ...textFont(), fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, paddingLeft: 4 },
+  sectionCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 14, borderBottomWidth: 1 },
   rowIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   rowText: { flex: 1 },
-  rowLabel: { ...textFont(), fontSize: 16, fontWeight: '700', color: '#1E1B2E' },
-  rowSublabel: { ...textFont(), fontSize: 13, color: '#6B7280', marginTop: 2, lineHeight: 19 },
-  version: { ...textFont(), textAlign: 'center', fontSize: 13, color: '#6B7280', marginTop: 8 },
+  rowLabel: { ...textFont(), fontSize: 16, fontWeight: '700' },
+  rowSublabel: { ...textFont(), fontSize: 13, marginTop: 2, lineHeight: 19 },
+  themeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    padding: 14,
+  },
+  themeOption: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    gap: 8,
+  },
+  themeOptionText: {
+    ...textFont(),
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  noticeCard: {
+    borderTopWidth: 1,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 6,
+  },
+  noticeLine: { ...textFont(), fontSize: 13, lineHeight: 20, marginBottom: 10 },
+  version: { ...textFont(), textAlign: 'center', fontSize: 13, marginTop: 8 },
 });
 
 export default SettingsScreen;

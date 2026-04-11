@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
@@ -47,6 +48,7 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const [state, setState] = useState<AuthState>({
     isAuthenticated: false,
     isLoading: true,
@@ -63,12 +65,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const initializeAuth = useCallback(async () => {
     try {
-      const [config, hasBiometricHardware, isBiometricEnrolled, hasProtectionConfigured, hasActiveSession] = await Promise.all([
+      const [config, hasBiometricHardware, isBiometricEnrolled, hasProtectionConfigured, hasCompletedSetup] = await Promise.all([
         authService.getAuthConfig(),
         LocalAuthentication.hasHardwareAsync(),
         LocalAuthentication.isEnrolledAsync(),
         authService.hasProtectionConfigured(),
-        authService.restoreSession(),
+        authService.hasCompletedSetup(),
       ]);
       const biometricAvailable = hasBiometricHardware && isBiometricEnrolled;
       const authMethod = config?.authMethod ?? null;
@@ -78,7 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setState(prev => ({
         ...prev,
-        isAuthenticated: isProtectionEnabled ? hasActiveSession : true,
+        isAuthenticated: isProtectionEnabled ? false : true,
         isProtectionEnabled,
         isBiometricAvailable: biometricAvailable,
         isBiometricEnabled: biometricAvailable && Boolean(config?.biometricEnabled || authMethod === 'biometric'),
@@ -86,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         failedAttempts: config?.failedAttempts ?? 0,
         isLocked,
         lockoutTimeRemaining,
-        needsSetup: config === null,
+        needsSetup: !isProtectionEnabled && !hasCompletedSetup,
         isLoading: false,
       }));
     } catch {
@@ -107,23 +109,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const handleAppStateChange = useCallback((nextAppState: AppStateStatus) => {
-    if ((nextAppState === 'background' || nextAppState === 'inactive') && authService.isAuthenticated()) {
-      void authService.refreshSession(AUTO_LOCK_TIMEOUT);
+    const previousState = appStateRef.current;
+    appStateRef.current = nextAppState;
+
+    if (nextAppState === 'background') {
+      if (state.isProtectionEnabled) {
+        void authService.clearSession();
+        setState(prev => ({ ...prev, isAuthenticated: false }));
+      }
       return;
     }
 
-    if (nextAppState === 'active') {
-      void (async () => {
-        const hasActiveSession = await authService.restoreSession();
-        if (!hasActiveSession && state.isProtectionEnabled) {
-          lock();
-          return;
-        }
-
-        if (hasActiveSession && state.isProtectionEnabled) {
-          setState(prev => ({ ...prev, isAuthenticated: true }));
-        }
-      })();
+    if (
+      nextAppState === 'active' &&
+      previousState === 'background' &&
+      state.isProtectionEnabled
+    ) {
+      lock();
     }
   }, [lock, state.isProtectionEnabled]);
 

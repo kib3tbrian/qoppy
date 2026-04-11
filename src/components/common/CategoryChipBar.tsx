@@ -71,11 +71,11 @@ const Chip: React.FC<ChipProps> = ({ label, color, isActive, onPress, theme }) =
     onPress={onPress}
     activeOpacity={0.7}
   >
-    {isActive && <View style={[styles.activeDot, { backgroundColor: '#fff' }]} />}
+    {isActive && <View style={[styles.activeDot, { backgroundColor: theme.onPrimary }]} />}
     <Text
       style={[
         styles.chipText,
-        { color: isActive ? '#fff' : color },
+        { color: isActive ? theme.onPrimary : color },
       ]}
     >
       {label}
