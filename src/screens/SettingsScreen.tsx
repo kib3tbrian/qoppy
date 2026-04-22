@@ -17,23 +17,18 @@ import {
   Tag,
   Trash2,
   ExternalLink,
-  Shield,
   Star,
   ChevronRight,
   Info,
   Zap,
   FileText,
   Mail,
-  Lock,
-  Fingerprint,
-  ShieldOff,
   Share2,
   Bug,
   Moon,
   Sun,
   Smartphone,
 } from 'lucide-react-native';
-import { useAuth } from '../hooks/useAuth';
 import { db } from '../services/database';
 import { COLORS } from '../constants';
 import { textFont } from '../constants/typography';
@@ -100,13 +95,6 @@ export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NavProp>();
   const { theme, preference, setThemeMode } = useTheme();
   const { deleteAllSnippets } = useSnippets();
-  const {
-    isProtectionEnabled,
-    isBiometricAvailable,
-    isBiometricEnabled,
-    authMethod,
-    disableProtection,
-  } = useAuth();
   const [snippetCount, setSnippetCount] = useState(0);
   const [hapticEnabled, setHapticEnabled] = useState(true);
 
@@ -149,33 +137,6 @@ export const SettingsScreen: React.FC = () => {
         },
       ]
     );
-  };
-
-  const handleDisableProtection = () => {
-    Alert.alert(
-      'Disable app lock?',
-      'This will remove your current PIN and biometric protection from Qoppy.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Disable',
-          style: 'destructive',
-          onPress: async () => {
-            await disableProtection();
-            Alert.alert('App lock disabled', 'PIN and biometric protection have been removed.');
-          },
-        },
-      ]
-    );
-  };
-
-  const handleAppLockSwitch = (nextValue: boolean) => {
-    if (nextValue) {
-      navigation.navigate('SetupPIN', { fromSettings: true });
-      return;
-    }
-
-    handleDisableProtection();
   };
 
   return (
@@ -257,58 +218,6 @@ export const SettingsScreen: React.FC = () => {
             />
           }
         />
-      </Section>
-
-      <Section title="App Lock">
-        <Row
-          icon={Lock}
-          iconColor={theme.primary}
-          label="App Lock"
-          sublabel={
-            isProtectionEnabled
-              ? authMethod === 'password'
-                ? isBiometricEnabled
-                  ? 'Password lock is enabled with biometric unlock.'
-                  : 'Password lock is enabled.'
-                : authMethod === 'biometric'
-                  ? 'Biometric lock is enabled on this device.'
-                  : isBiometricEnabled
-                    ? 'PIN lock is enabled with biometric unlock.'
-                    : 'PIN lock is enabled.'
-              : 'Turn on PIN or biometric lock for app open.'
-          }
-          onPress={() => navigation.navigate('SetupPIN', { fromSettings: true })}
-          right={
-            <Switch
-              value={isProtectionEnabled}
-              onValueChange={handleAppLockSwitch}
-              trackColor={{ true: theme.primary, false: theme.border }}
-              thumbColor={theme.onPrimary}
-            />
-          }
-        />
-        {isBiometricAvailable && (
-          <Row
-            icon={Fingerprint}
-            iconColor={COLORS.success}
-            label="Biometric availability"
-            sublabel={
-              isBiometricEnabled
-                ? 'Biometric unlock is currently active.'
-                : 'Biometric unlock is available during app lock setup.'
-            }
-          />
-        )}
-        {isProtectionEnabled && (
-          <Row
-            icon={ShieldOff}
-            iconColor={COLORS.danger}
-            label="Disable app lock"
-            sublabel="Remove PIN and biometric protection from this device."
-            danger
-            onPress={handleDisableProtection}
-          />
-        )}
       </Section>
 
       <Section title="Data">

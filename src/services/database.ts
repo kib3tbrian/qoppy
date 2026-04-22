@@ -9,8 +9,6 @@ import { Snippet, SnippetInsert, SnippetUpdate, Category } from '../types';
 import { DEFAULT_CATEGORIES } from '../constants';
 
 const DB_NAME = 'clipmanager.db';
-const DB_VERSION = 1;
-
 class DatabaseService {
   private db: SQLite.SQLiteDatabase | null = null;
 
@@ -61,18 +59,6 @@ class DatabaseService {
       CREATE TABLE IF NOT EXISTS preferences (
         key   TEXT PRIMARY KEY NOT NULL,
         value TEXT NOT NULL
-      );
-    `);
-
-    // Auth config (single row for app-wide auth settings)
-    await db.execAsync(`
-      CREATE TABLE IF NOT EXISTS auth_config (
-        id                TEXT PRIMARY KEY NOT NULL DEFAULT 'main',
-        pin_hash          TEXT,
-        biometric_enabled INTEGER NOT NULL DEFAULT 0,
-        failed_attempts   INTEGER NOT NULL DEFAULT 0,
-        locked_until      INTEGER,
-        created_at        INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
       );
     `);
 
@@ -356,62 +342,6 @@ class DatabaseService {
     const db = this.getDb();
     // ON DELETE SET NULL handles the snippets FK automatically
     await db.runAsync(`DELETE FROM categories WHERE id = ?`, [id]);
-  }
-
-  // ─── Auth Config ────────────────────────────────────────────────────────
-
-  async getAuthConfig(): Promise<{
-    id: string;
-    pinHash: string | null;
-    biometricEnabled: boolean;
-    failedAttempts: number;
-    lockedUntil: number | null;
-    createdAt: number;
-  } | null> {
-    const db = this.getDb();
-    const row = await db.getFirstAsync<any>(`
-      SELECT id, pin_hash as pinHash, biometric_enabled as biometricEnabled,
-             failed_attempts as failedAttempts, locked_until as lockedUntil, created_at as createdAt
-      FROM auth_config WHERE id = 'main'
-    `);
-    return row
-      ? {
-          ...row,
-          biometricEnabled: row.biometricEnabled === 1,
-        }
-      : null;
-  }
-
-  async setAuthConfig(config: { pinHash?: string | null; biometricEnabled?: boolean; failedAttempts?: number; lockedUntil?: number | null }): Promise<void> {
-    const db = this.getDb();
-    const current = await this.getAuthConfig();
-
-    const pinHash = config.pinHash !== undefined ? config.pinHash : current?.pinHash ?? null;
-    const biometricEnabled = config.biometricEnabled !== undefined
-      ? config.biometricEnabled
-      : Boolean(current?.biometricEnabled);
-    const failedAttempts = config.failedAttempts !== undefined
-      ? config.failedAttempts
-      : current?.failedAttempts ?? 0;
-    const lockedUntil = config.lockedUntil !== undefined
-      ? config.lockedUntil
-      : current?.lockedUntil ?? null;
-
-    await db.runAsync(
-      `INSERT INTO auth_config (id, pin_hash, biometric_enabled, failed_attempts, locked_until)
-       VALUES ('main', ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-         pin_hash = excluded.pin_hash,
-         biometric_enabled = excluded.biometric_enabled,
-         failed_attempts = excluded.failed_attempts,
-         locked_until = excluded.locked_until`,
-      [pinHash, biometricEnabled ? 1 : 0, failedAttempts, lockedUntil]
-    );
-  }
-
-  async deleteAuthConfig(): Promise<void> {
-    const db = this.getDb();
-    await db.runAsync(`DELETE FROM auth_config WHERE id = 'main'`);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────

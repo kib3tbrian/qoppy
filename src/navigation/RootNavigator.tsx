@@ -12,12 +12,10 @@ import OnboardingScreen from '../screens/OnboardingScreen';
 import AddSnippetScreen from '../screens/AddSnippetScreen';
 import PaywallScreen from '../screens/PaywallScreen';
 import ManageCategoriesScreen from '../screens/ManageCategoriesScreen';
-import { SetupPINScreen } from '../screens/SetupPINScreen';
 import MainTabNavigator from './MainTabNavigator';
-import { AuthGate } from './AuthGate';
-import { AuthProvider } from '../hooks/useAuth';
 import { SnippetsProvider } from '../hooks/useSnippets';
 import { useTheme } from '../hooks/useTheme';
+import { syncPremiumStatusFromBilling, watchPremiumStatusFromBilling } from '../services/premiumSync';
 
 // Ignore specific warnings if necessary
 LogBox.ignoreLogs(['Non-serializable values were found in the navigation state']);
@@ -51,12 +49,19 @@ export const RootNavigator: React.FC = () => {
   };
 
   useEffect(() => {
+    const unsubscribe = watchPremiumStatusFromBilling();
+
     (async () => {
       try {
         await Promise.all([
           db.init(),
           new Promise(resolve => setTimeout(resolve, 1200)),
         ]);
+        try {
+          await syncPremiumStatusFromBilling();
+        } catch {
+          // Keep launch resilient if Google Play is temporarily unavailable.
+        }
         const onboarded = await db.getPreference('onboarded');
         setInitialRoute(onboarded === 'true' ? 'Main' : 'Onboarding');
       } catch {
@@ -65,86 +70,59 @@ export const RootNavigator: React.FC = () => {
         setIsReady(true);
       }
     })();
+
+    return () => {
+      unsubscribe?.();
+    };
   }, []);
 
   if (!isReady) {
     return <LaunchSplash backgroundColor={theme.background} textColor={theme.text} />;
   }
 
-  const ProtectedMainScreen = () => (
-    <AuthGate>
-      <MainTabNavigator />
-    </AuthGate>
-  );
-
-  const ProtectedAddSnippetScreen = () => (
-    <AuthGate>
-      <AddSnippetScreen />
-    </AuthGate>
-  );
-
-  const ProtectedPaywallScreen = () => (
-    <AuthGate>
-      <PaywallScreen />
-    </AuthGate>
-  );
-
-  const ProtectedManageCategoriesScreen = () => (
-    <AuthGate>
-      <ManageCategoriesScreen />
-    </AuthGate>
-  );
-
   return (
-    <AuthProvider>
-      <SnippetsProvider>
-        <NavigationContainer theme={navTheme}>
-          <Stack.Navigator
-            initialRouteName={initialRoute}
-            screenOptions={{
-              headerStyle: { backgroundColor: theme.header },
-              headerTintColor: theme.text,
-              headerShadowVisible: false,
-              headerTitleStyle: { fontWeight: '700', fontSize: 17, color: theme.text },
-              contentStyle: { backgroundColor: theme.background },
-              animation: 'fade',
-              animationDuration: 250,
-            }}
-          >
-            <Stack.Screen
-              name="Onboarding"
-              component={OnboardingScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="Main"
-              component={ProtectedMainScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="AddSnippet"
-              component={ProtectedAddSnippetScreen}
-              options={{ presentation: 'modal' }}
-            />
-            <Stack.Screen
-              name="Paywall"
-              component={ProtectedPaywallScreen}
-              options={{ presentation: 'modal', headerShown: false }}
-            />
-            <Stack.Screen
-              name="SetupPIN"
-              component={SetupPINScreen}
-              options={{ title: 'App Lock', presentation: 'modal' }}
-            />
-            <Stack.Screen
-              name="ManageCategories"
-              component={ProtectedManageCategoriesScreen}
-              options={{ title: 'Categories' }}
-            />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </SnippetsProvider>
-    </AuthProvider>
+    <SnippetsProvider>
+      <NavigationContainer theme={navTheme}>
+        <Stack.Navigator
+          initialRouteName={initialRoute}
+          screenOptions={{
+            headerStyle: { backgroundColor: theme.header },
+            headerTintColor: theme.text,
+            headerShadowVisible: false,
+            headerTitleStyle: { fontWeight: '700', fontSize: 17, color: theme.text },
+            contentStyle: { backgroundColor: theme.background },
+            animation: 'fade',
+            animationDuration: 250,
+          }}
+        >
+          <Stack.Screen
+            name="Onboarding"
+            component={OnboardingScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Main"
+            component={MainTabNavigator}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="AddSnippet"
+            component={AddSnippetScreen}
+            options={{ presentation: 'modal' }}
+          />
+          <Stack.Screen
+            name="Paywall"
+            component={PaywallScreen}
+            options={{ presentation: 'modal', headerShown: false }}
+          />
+          <Stack.Screen
+            name="ManageCategories"
+            component={ManageCategoriesScreen}
+            options={{ title: 'Categories' }}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SnippetsProvider>
   );
 };
 

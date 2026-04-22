@@ -2,6 +2,7 @@ package com.qoppy.app
 
 import android.app.Application
 import android.content.res.Configuration
+import com.qoppy.app.billing.BillingPackage
 
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
@@ -23,8 +24,7 @@ class MainApplication : Application(), ReactApplication {
         object : DefaultReactNativeHost(this) {
           override fun getPackages(): List<ReactPackage> {
             val packages = PackageList(this).packages
-            // Packages that cannot be autolinked yet can be added manually here, for example:
-            // packages.add(MyReactNativePackage())
+            packages.add(BillingPackage())
             return packages
           }
 

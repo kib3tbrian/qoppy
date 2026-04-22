@@ -10,11 +10,16 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Check, Crown, LoaderCircle, X } from 'lucide-react-native';
-import { useIAP, type ProductSubscription } from 'react-native-iap';
 import { COLORS } from '../constants';
 import { textFont } from '../constants/typography';
 import { useTheme } from '../hooks/useTheme';
 import { db } from '../services/database';
+import nativeBilling, {
+  NativeBillingState,
+  NativeSubscriptionOffer,
+  NativeSubscriptionProduct,
+} from '../services/nativeBilling';
+import { syncPremiumStatusFromBilling } from '../services/premiumSync';
 
 const BENEFITS = [
   'Unlimited snippets instead of the free-tier cap of 10',
@@ -41,24 +46,31 @@ const FALLBACK_PLANS: Record<PlanKey, PlanConfig> = {
   yearly: { label: 'Yearly', price: '$19.99', period: '/year', badge: 'Save 16%' },
 };
 
+const getPeriodLabel = (billingPeriod?: string | null): string | null => {
+  switch (billingPeriod) {
+    case 'P1M':
+      return '/month';
+    case 'P1Y':
+      return '/year';
+    default:
+      return null;
+  }
+};
+
 const getPlanFromSubscription = (
-  subscription: ProductSubscription | undefined,
+  subscription: NativeSubscriptionProduct | undefined,
   fallback: PlanConfig
 ): PlanConfig => {
   if (!subscription) {
     return fallback;
   }
 
-  const regularOffer = subscription.subscriptionOffers?.find(
-    offer => offer.offerTokenAndroid && offer.pricingPhasesAndroid?.pricingPhaseList?.length
-  );
-  const phase = regularOffer?.pricingPhasesAndroid?.pricingPhaseList?.find(
-    pricingPhase => pricingPhase.formattedPrice
-  );
+  const phase = subscription.offers.find(offer => offer.formattedPrice);
 
   return {
     ...fallback,
-    price: phase?.formattedPrice ?? subscription.displayPrice ?? fallback.price,
+    price: phase?.formattedPrice ?? fallback.price,
+    period: getPeriodLabel(phase?.billingPeriod) ?? fallback.period,
   };
 };
 
@@ -67,16 +79,23 @@ export const PaywallScreen: React.FC = () => {
   const { theme } = useTheme();
   const [plan, setPlan] = useState<PlanKey>('yearly');
   const [isPurchasing, setIsPurchasing] = useState(false);
-  const [hasLoadedProducts, setHasLoadedProducts] = useState(false);
+  const [products, setProducts] = useState<NativeSubscriptionProduct[]>([]);
+  const [billingState, setBillingState] = useState<NativeBillingState>({ status: 'initializing' });
 
-  const {
-    connected,
-    subscriptions,
-    fetchProducts,
-    requestPurchase,
-  } = useIAP({
-    onPurchaseSuccess: purchase => {
-      void (async () => {
+  useEffect(() => {
+    if (!nativeBilling.isAvailable() || Platform.OS !== 'android') {
+      return;
+    }
+
+    let isMounted = true;
+    const unsubscribe = nativeBilling.subscribe(async state => {
+      if (!isMounted) {
+        return;
+      }
+
+      setBillingState(state);
+
+      if (state.status === 'subscribed') {
         try {
           await db.setPreference('premium_enabled', 'true');
           await db.setPreference('premium_prompt_seen', 'true');
@@ -90,36 +109,33 @@ export const PaywallScreen: React.FC = () => {
         } finally {
           setIsPurchasing(false);
         }
-      })();
-    },
-    onPurchaseError: error => {
-      setIsPurchasing(false);
-      Alert.alert('Checkout failed', error.message || 'Unable to complete the Google Play purchase.');
-    },
-    onError: error => {
-      setIsPurchasing(false);
-      Alert.alert('Store unavailable', error.message || 'Unable to connect to Google Play right now.');
-    },
-  });
+        return;
+      }
 
-  useEffect(() => {
-    if (!connected || hasLoadedProducts) {
-      return;
-    }
+      if (state.status === 'error') {
+        setIsPurchasing(false);
+        Alert.alert('Billing error', state.message ?? 'Google Play Billing encountered an error.');
+        return;
+      }
 
-    let isMounted = true;
+      if (state.status === 'ready') {
+        setIsPurchasing(false);
+      }
+    });
 
     void (async () => {
       try {
-        await fetchProducts({
-          skus: Object.values(SUBSCRIPTION_SKUS),
-          type: 'subs',
-        });
-        if (isMounted) {
-          setHasLoadedProducts(true);
+        const currentState = await syncPremiumStatusFromBilling();
+        if (!currentState) {
+          throw new Error('Native billing is not available on this device.');
         }
+        if (isMounted) setBillingState(currentState);
+
+        const result = await nativeBilling.fetchSubscriptions(Object.values(SUBSCRIPTION_SKUS));
+        if (isMounted) setProducts(result);
       } catch (error: any) {
         if (isMounted) {
+          setBillingState({ status: 'error', message: error?.message });
           Alert.alert('Google Play unavailable', error?.message ?? 'Unable to load premium plans from Google Play.');
         }
       }
@@ -127,15 +143,16 @@ export const PaywallScreen: React.FC = () => {
 
     return () => {
       isMounted = false;
+      unsubscribe?.();
     };
-  }, [connected, fetchProducts, hasLoadedProducts]);
+  }, [navigation, plan]);
 
   const subscriptionsBySku = useMemo(() => {
-    return subscriptions.reduce<Record<string, ProductSubscription>>((acc, subscription) => {
-      acc[subscription.id] = subscription;
+    return products.reduce<Record<string, NativeSubscriptionProduct>>((acc, subscription) => {
+      acc[subscription.productId] = subscription;
       return acc;
     }, {});
-  }, [subscriptions]);
+  }, [products]);
 
   const plans = useMemo<Record<PlanKey, PlanConfig>>(
     () => ({
@@ -153,7 +170,12 @@ export const PaywallScreen: React.FC = () => {
       return;
     }
 
-    if (!connected) {
+    if (!nativeBilling.isAvailable()) {
+      Alert.alert('Google Play unavailable', 'Native billing is not available right now.');
+      return;
+    }
+
+    if (billingState.status === 'initializing') {
       Alert.alert('Google Play unavailable', 'Google Play is not ready yet. Please try again in a moment.');
       return;
     }
@@ -169,19 +191,17 @@ export const PaywallScreen: React.FC = () => {
       return;
     }
 
-    const offerToken = subscription.subscriptionOffers?.[0]?.offerTokenAndroid ?? null;
+    const offer = subscription.offers.find((item: NativeSubscriptionOffer) => item.offerToken);
+    const offerToken = offer?.offerToken ?? null;
+
+    if (!offerToken) {
+      Alert.alert('Plan not ready', 'This plan is missing a Google Play offer token.');
+      return;
+    }
 
     setIsPurchasing(true);
     try {
-      await requestPurchase({
-        type: 'subs',
-        request: {
-          android: {
-            skus: [subscription.id],
-            subscriptionOffers: offerToken ? [{ sku: subscription.id, offerToken }] : null,
-          },
-        },
-      });
+      await nativeBilling.launchPurchase(subscription.productId, offerToken);
     } catch (error: any) {
       setIsPurchasing(false);
       Alert.alert('Checkout failed', error?.message ?? 'Unable to open the Google Play purchase popup.');
