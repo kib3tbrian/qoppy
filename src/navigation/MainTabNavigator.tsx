@@ -101,11 +101,11 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         style={[
           styles.tabBarBackdrop,
           {
-            backgroundColor: theme.tabBackdrop,
+            backgroundColor: 'transparent',
           },
         ]}
       />
-      <View style={[styles.tabBar, { backgroundColor: theme.tabGlass, borderColor: theme.tabBorder, shadowColor: theme.shadow }]}>
+      <View style={[styles.tabBar, { backgroundColor: theme.tabGlass, shadowColor: theme.shadow }]}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const label = options.tabBarLabel ?? route.name;
@@ -148,7 +148,14 @@ export const MainTabNavigator: React.FC = () => {
         headerTintColor: theme.text,
         headerShadowVisible: false,
         tabBarHideOnKeyboard: true,
-        tabBarStyle: { display: 'none', position: 'absolute' },
+        tabBarStyle: {
+          display: 'none',
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,
+          shadowOpacity: 0,
+        },
         tabBarBackground: () => null,
         headerTitleStyle: {
           ...textFont(),
@@ -200,6 +207,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     paddingTop: 0,
+    backgroundColor: 'transparent',
   },
   tabBar: {
     flexDirection: 'row',
@@ -208,11 +216,11 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 6,
     borderRadius: 28,
-    borderWidth: 1,
+    borderWidth: 0,
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0,
     shadowRadius: 20,
-    elevation: 12,
+    elevation: 0,
   },
   tabBarBackdrop: {
     ...StyleSheet.absoluteFillObject,

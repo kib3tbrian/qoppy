@@ -9,7 +9,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
   Platform,
 } from 'react-native';
 import Animated, {
@@ -27,11 +26,7 @@ import { COLORS, ANIMATION_DURATION } from '../../constants';
 import { textFont } from '../../constants/typography';
 import { useTheme } from '../../hooks/useTheme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const NUM_COLUMNS = 2;
-const LIST_HORIZONTAL_PADDING = 12;
 const CARD_GAP = 8;
-const CARD_WIDTH = (SCREEN_WIDTH - LIST_HORIZONTAL_PADDING * 2 - CARD_GAP) / NUM_COLUMNS;
 
 interface SnippetCardProps {
   snippet: Snippet;
@@ -123,41 +118,43 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
         activeOpacity={1}
         delayLongPress={400}
       >
-        {/* Category badge */}
-        {snippet.categoryName && (
-          <View
-            style={[
-              styles.categoryBadge,
-              { backgroundColor: theme.surfaceAlt },
-            ]}
-          >
+        <View style={styles.contentWrap}>
+          {/* Category badge */}
+          {snippet.categoryName && (
             <View
               style={[
-                styles.categoryDot,
-                { backgroundColor: snippet.categoryColor ?? COLORS.primary },
+                styles.categoryBadge,
+                { backgroundColor: theme.surfaceAlt },
               ]}
-            />
-            <Text
-              style={[
-                styles.categoryText,
-                { color: theme.primary },
-              ]}
-              numberOfLines={1}
             >
-              {snippet.categoryName}
-            </Text>
-          </View>
-        )}
+              <View
+                style={[
+                  styles.categoryDot,
+                  { backgroundColor: snippet.categoryColor ?? COLORS.primary },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.categoryText,
+                  { color: theme.primary },
+                ]}
+                numberOfLines={1}
+              >
+                {snippet.categoryName}
+              </Text>
+            </View>
+          )}
 
-        {/* Title */}
-        <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>
-          {snippet.title}
-        </Text>
+          {/* Title */}
+          <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>
+            {snippet.title}
+          </Text>
 
-        {/* Content preview */}
-        <Text style={[styles.content, { color: theme.textSecondary }]} numberOfLines={3}>
-          {contentPreview}
-        </Text>
+          {/* Content preview */}
+          <Text style={[styles.content, { color: theme.textSecondary }]} numberOfLines={3}>
+            {contentPreview}
+          </Text>
+        </View>
 
         {/* Footer row */}
         <View style={styles.footer}>
@@ -205,7 +202,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
 
 const styles = StyleSheet.create({
   wrapper: {
-    width: CARD_WIDTH,
+    flex: 1,
     marginBottom: CARD_GAP,
     position: 'relative',
   },
@@ -222,6 +219,7 @@ const styles = StyleSheet.create({
     pointerEvents: 'none',
   },
   card: {
+    flex: 1,
     borderRadius: 16,
     paddingHorizontal: 11,
     paddingVertical: 10,
@@ -238,6 +236,10 @@ const styles = StyleSheet.create({
         elevation: 4,
       },
     }),
+  },
+  contentWrap: {
+    flex: 1,
+    justifyContent: 'space-between',
   },
   categoryBadge: {
     flexDirection: 'row',
@@ -271,7 +273,6 @@ const styles = StyleSheet.create({
     ...textFont(),
     fontSize: 12,
     lineHeight: 16,
-    flex: 1,
   },
   footer: {
     flexDirection: 'row',

@@ -13,6 +13,7 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
+  CircleUserRound,
   Crown,
   Tag,
   Trash2,
@@ -28,6 +29,8 @@ import {
   Moon,
   Sun,
   Smartphone,
+  Cloud,
+  ShieldAlert,
 } from 'lucide-react-native';
 import { db } from '../services/database';
 import { COLORS } from '../constants';
@@ -120,6 +123,13 @@ export const SettingsScreen: React.FC = () => {
     await db.setPreference('haptic', value ? 'true' : 'false');
   };
 
+  const handleGoogleSignIn = () => {
+    Alert.alert(
+      'Google sign-in',
+      'The optional Google sign-in entry point is now available here. The actual OAuth connection still needs to be wired before users can sign in with a live Google account.'
+    );
+  };
+
   const handleClearAll = () => {
     Alert.alert(
       'Clear all snippets?',
@@ -139,6 +149,27 @@ export const SettingsScreen: React.FC = () => {
     );
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete account data?',
+      'This will remove all local snippets and clear any saved account-related preferences on this device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete account',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteAllSnippets();
+            await db.setPreference('google_account_connected', 'false');
+            await db.setPreference('google_account_email', '');
+            setSnippetCount(0);
+            Alert.alert('Deleted', 'Local account data has been removed from this device.');
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={styles.content}>
       <TouchableOpacity
@@ -151,7 +182,7 @@ export const SettingsScreen: React.FC = () => {
           <Text style={[styles.premiumTitle, { color: theme.onPrimary }]}>Go Premium</Text>
         </View>
         <Text style={[styles.premiumSub, { color: `${theme.onPrimary}DD` }]}>
-          Unlock unlimited snippets, Google Pay support, crypto options, and future backup features.
+          Unlock unlimited snippets, backup, and device sync.
         </Text>
       </TouchableOpacity>
 
@@ -173,6 +204,30 @@ export const SettingsScreen: React.FC = () => {
       <Section title="Usage">
         <Row icon={Info} iconColor={COLORS.primary} label="Snippets stored" sublabel={`${snippetCount} snippets saved`} />
         <Row icon={Tag} iconColor={COLORS.secondary} label="Manage categories" onPress={() => navigation.navigate('ManageCategories')} />
+      </Section>
+
+      <Section title="Account">
+        <Row
+          icon={CircleUserRound}
+          iconColor={COLORS.primary}
+          label="Sign in with Google"
+          sublabel="Optional for backup and device sync"
+          onPress={handleGoogleSignIn}
+        />
+        <Row
+          icon={Cloud}
+          iconColor={COLORS.secondary}
+          label="Backup and sync"
+          sublabel="Available when Google account connection is set up"
+          onPress={handleGoogleSignIn}
+        />
+        <Row
+          icon={ShieldAlert}
+          label="Delete account"
+          sublabel="Remove local account data from this device"
+          danger
+          onPress={handleDeleteAccount}
+        />
       </Section>
 
       <Section title="Appearance">

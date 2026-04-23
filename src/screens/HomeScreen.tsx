@@ -141,7 +141,7 @@ export const HomeScreen: React.FC = () => {
           <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>You reached 10 snippets</Text>
             <Text style={[styles.modalBody, { color: theme.textSecondary }]}>
-              Free Qoppy now pauses at 10 saved snippets. Upgrade for unlimited snippets and payment features, or close this message and keep using your current library.
+              Free Qoppy now pauses at 10 saved snippets. Upgrade for unlimited snippets, backup, and device sync, or close this message and keep using your current library.
             </Text>
             <TouchableOpacity
               style={[styles.modalPrimaryButton, { backgroundColor: theme.primary }]}
@@ -176,8 +176,10 @@ const styles = StyleSheet.create({
     paddingBottom: 118,
   },
   row: {
+    alignItems: 'stretch',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
+    gap: 8,
   },
   count: {
     ...textFont(),

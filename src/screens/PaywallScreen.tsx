@@ -23,8 +23,8 @@ import { syncPremiumStatusFromBilling } from '../services/premiumSync';
 
 const BENEFITS = [
   'Unlimited snippets instead of the free-tier cap of 10',
-  'Simple checkout through Google Play',
-  'Priority support and future premium perks',
+  'Secure backup for your saved snippets',
+  'Device sync across your signed-in sessions',
 ];
 
 const SUBSCRIPTION_SKUS = {
@@ -214,7 +214,7 @@ export const PaywallScreen: React.FC = () => {
         <Crown size={44} color={theme.primary} fill={`${theme.primary}20`} />
         <Text style={[styles.heroTitle, { color: theme.text }]}>Qoppy Premium</Text>
         <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>
-          Free includes up to 10 snippets. Premium unlocks unlimited snippets with checkout handled by Google Play.
+          Free includes up to 10 snippets. Premium unlocks unlimited snippets, backup, and device sync.
         </Text>
       </View>
 
