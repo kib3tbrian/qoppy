@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo } from 'react';
 import {
   View,
   FlatList,
@@ -23,6 +23,7 @@ import { ANIMATION_DURATION } from '../constants';
 import { textFont } from '../constants/typography';
 import { RootStackParamList, Snippet } from '../types';
 import { useTheme } from '../hooks/useTheme';
+import { isGridPlaceholderItem, padGridItems, GridListItem } from '../utils/padGridItems';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -47,6 +48,7 @@ export const HomeScreen: React.FC = () => {
     refresh,
   } = useSnippets();
   const { categories } = useCategories();
+  const gridSnippets = useMemo(() => padGridItems(snippets, NUM_COLUMNS), [snippets]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -63,16 +65,19 @@ export const HomeScreen: React.FC = () => {
   }, [deleteSnippet]);
 
   const renderItem = useCallback(
-    ({ item }: { item: Snippet }) => (
-      <SnippetCard
-        snippet={item}
-        isCopied={copiedId === item.id}
-        onCopy={copySnippet}
-        onFavorite={toggleFavorite}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-      />
-    ),
+    ({ item }: { item: GridListItem<Snippet> }) =>
+      isGridPlaceholderItem(item) ? (
+        <View style={styles.cardPlaceholder} />
+      ) : (
+        <SnippetCard
+          snippet={item}
+          isCopied={copiedId === item.id}
+          onCopy={copySnippet}
+          onFavorite={toggleFavorite}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      ),
     [copiedId, copySnippet, toggleFavorite, handleEdit, handleDelete]
   );
 
@@ -105,7 +110,7 @@ export const HomeScreen: React.FC = () => {
       )}
 
       <FlatList
-        data={snippets}
+        data={gridSnippets}
         keyExtractor={item => item.id}
         renderItem={renderItem}
         numColumns={NUM_COLUMNS}
@@ -180,6 +185,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 12,
     gap: 8,
+  },
+  cardPlaceholder: {
+    flex: 1,
+    marginBottom: 8,
   },
   count: {
     ...textFont(),

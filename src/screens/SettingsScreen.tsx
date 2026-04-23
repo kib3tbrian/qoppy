@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,6 @@ import {
   CircleUserRound,
   Crown,
   Tag,
-  Trash2,
   ExternalLink,
   Star,
   ChevronRight,
@@ -38,6 +37,17 @@ import { textFont } from '../constants/typography';
 import { RootStackParamList } from '../types';
 import { useTheme, AppThemePreference } from '../hooks/useTheme';
 import { useSnippets } from '../hooks/useSnippets';
+import * as AuthSession from 'expo-auth-session';
+import {
+  buildGoogleAuthRequestConfig,
+  clearGoogleAccount,
+  GOOGLE_DISCOVERY,
+  GoogleAccount,
+  isGoogleAuthConfigured,
+  loadGoogleAccount,
+  normalizeGoogleUser,
+  saveGoogleAccount,
+} from '../services/googleAuth';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -100,10 +110,27 @@ export const SettingsScreen: React.FC = () => {
   const { deleteAllSnippets } = useSnippets();
   const [snippetCount, setSnippetCount] = useState(0);
   const [hapticEnabled, setHapticEnabled] = useState(true);
+  const [googleAccount, setGoogleAccount] = useState<GoogleAccount | null>(null);
+  const [isGoogleBusy, setIsGoogleBusy] = useState(false);
+
+  const googleAuthConfig = useMemo(() => buildGoogleAuthRequestConfig(), []);
+  const authRequestConfig = useMemo<AuthSession.AuthRequestConfig>(() => {
+    return (
+      googleAuthConfig ?? {
+        clientId: 'google-client-id-required',
+        redirectUri: AuthSession.makeRedirectUri({ scheme: 'qoppy', path: 'oauth' }),
+        responseType: AuthSession.ResponseType.Code,
+        scopes: ['openid', 'profile', 'email'],
+        usePKCE: true,
+      }
+    );
+  }, [googleAuthConfig]);
+  const [request, response, promptAsync] = AuthSession.useAuthRequest(authRequestConfig, GOOGLE_DISCOVERY);
 
   const loadUsage = useCallback(() => {
     db.getSnippetCount().then(setSnippetCount);
     db.getPreference('haptic', 'true').then(v => setHapticEnabled(v === 'true'));
+    loadGoogleAccount().then(setGoogleAccount);
   }, []);
 
   useFocusEffect(
@@ -123,12 +150,104 @@ export const SettingsScreen: React.FC = () => {
     await db.setPreference('haptic', value ? 'true' : 'false');
   };
 
-  const handleGoogleSignIn = () => {
-    Alert.alert(
-      'Google sign-in',
-      'The optional Google sign-in entry point is now available here. The actual OAuth connection still needs to be wired before users can sign in with a live Google account.'
-    );
-  };
+  useEffect(() => {
+    if (!response) {
+      return;
+    }
+
+    if (response.type === 'dismiss' || response.type === 'cancel') {
+      setIsGoogleBusy(false);
+      return;
+    }
+
+    if (response.type === 'error') {
+      setIsGoogleBusy(false);
+      Alert.alert('Google sign-in failed', response.error?.message ?? 'Unable to complete the Google sign-in flow.');
+      return;
+    }
+
+    if (response.type !== 'success') {
+      return;
+    }
+
+    const code = response.params.code;
+    if (!googleAuthConfig || !code || !request?.codeVerifier) {
+      setIsGoogleBusy(false);
+      Alert.alert('Google sign-in failed', 'Google sign-in could not finish because the authorization response was incomplete.');
+      return;
+    }
+
+    let isMounted = true;
+
+    (async () => {
+      try {
+        const tokenResponse = await AuthSession.exchangeCodeAsync(
+          {
+            clientId: googleAuthConfig.clientId,
+            code,
+            redirectUri: authRequestConfig.redirectUri,
+            extraParams: {
+              code_verifier: request.codeVerifier ?? '',
+            },
+          },
+          GOOGLE_DISCOVERY
+        );
+
+        const userInfo = await AuthSession.fetchUserInfoAsync(
+          {
+            accessToken: tokenResponse.accessToken,
+          },
+          GOOGLE_DISCOVERY
+        );
+
+        const account = normalizeGoogleUser(userInfo);
+        if (!account.email) {
+          throw new Error('Google did not return an email address for this account.');
+        }
+
+        await saveGoogleAccount(account, tokenResponse);
+
+        if (isMounted) {
+          setGoogleAccount(account);
+          Alert.alert('Google connected', account.email);
+        }
+      } catch (error: any) {
+        if (isMounted) {
+          Alert.alert('Google sign-in failed', error?.message ?? 'Unable to connect your Google account right now.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsGoogleBusy(false);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authRequestConfig.redirectUri, googleAuthConfig, request, response]);
+
+  const handleGoogleSignIn = useCallback(async () => {
+    if (!isGoogleAuthConfigured() || !googleAuthConfig) {
+      Alert.alert(
+        'Google OAuth not configured',
+        'Add your Google OAuth client ID to `expo.extra.googleAuth.androidClientId` in app.json, rebuild the app, and then try again.'
+      );
+      return;
+    }
+
+    if (!request) {
+      Alert.alert('Google sign-in not ready', 'The Google sign-in request is still loading. Please try again in a moment.');
+      return;
+    }
+
+    setIsGoogleBusy(true);
+    const result = await promptAsync();
+
+    if (result.type !== 'opened' && result.type !== 'locked') {
+      setIsGoogleBusy(false);
+    }
+  }, [googleAuthConfig, promptAsync, request]);
 
   const handleClearAll = () => {
     Alert.alert(
@@ -160,9 +279,9 @@ export const SettingsScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             await deleteAllSnippets();
-            await db.setPreference('google_account_connected', 'false');
-            await db.setPreference('google_account_email', '');
+            await clearGoogleAccount();
             setSnippetCount(0);
+            setGoogleAccount(null);
             Alert.alert('Deleted', 'Local account data has been removed from this device.');
           },
         },
@@ -211,15 +330,21 @@ export const SettingsScreen: React.FC = () => {
           icon={CircleUserRound}
           iconColor={COLORS.primary}
           label="Sign in with Google"
-          sublabel="Optional for backup and device sync"
+          sublabel={
+            googleAccount
+              ? `${googleAccount.email}${googleAccount.name ? ` • ${googleAccount.name}` : ''}`
+              : isGoogleBusy
+                ? 'Connecting your Google account...'
+                : 'Optional for backup and device sync'
+          }
           onPress={handleGoogleSignIn}
         />
         <Row
           icon={Cloud}
           iconColor={COLORS.secondary}
           label="Backup and sync"
-          sublabel="Available when Google account connection is set up"
-          onPress={handleGoogleSignIn}
+          sublabel={googleAccount ? 'Google account connected for backup and sync' : 'Sign in with Google to enable backup and sync'}
+          onPress={!googleAccount ? handleGoogleSignIn : undefined}
         />
         <Row
           icon={ShieldAlert}
@@ -273,17 +398,6 @@ export const SettingsScreen: React.FC = () => {
             />
           }
         />
-      </Section>
-
-      <Section title="Data">
-        <Row icon={Trash2} label="Clear all snippets" danger onPress={handleClearAll} />
-        <View style={[styles.noticeCard, { borderTopColor: theme.border }]}>
-          <Text style={[styles.noticeLine, { color: theme.text }]}>This app uses local-first storage. Your snippets are stored on your device only unless you upgrade to cloud backup.</Text>
-          <Text style={[styles.noticeLine, { color: theme.text }]}>Do not store passwords, full credit card numbers, or government ID PINs.</Text>
-          <Text style={[styles.noticeLine, { color: theme.text }]}>The app is not designed for storing sensitive authentication credentials.</Text>
-          <Text style={[styles.noticeLine, { color: theme.text }]}>You are responsible for the content you copy and store.</Text>
-          <Text style={[styles.noticeLine, { color: theme.text }]}>For GDPR: no clipboard content is sent to external servers on the free plan.</Text>
-        </View>
       </Section>
 
       <Section title="Support">
@@ -418,13 +532,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  noticeCard: {
-    borderTopWidth: 1,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 6,
-  },
-  noticeLine: { ...textFont(), fontSize: 13, lineHeight: 20, marginBottom: 10 },
   version: { ...textFont(), textAlign: 'center', fontSize: 13, marginTop: 8 },
 });
 

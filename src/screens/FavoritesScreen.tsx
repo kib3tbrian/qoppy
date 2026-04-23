@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useLayoutEffect } from 'react';
+import React, { useState, useCallback, useLayoutEffect, useMemo } from 'react';
 import {
   View,
   FlatList,
@@ -15,6 +15,7 @@ import { useSnippets } from '../hooks/useSnippets';
 import { Snippet, RootStackParamList } from '../types';
 import { textFont } from '../constants/typography';
 import { useTheme } from '../hooks/useTheme';
+import { GridListItem, isGridPlaceholderItem, padGridItems } from '../utils/padGridItems';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -26,6 +27,7 @@ export const FavoritesScreen: React.FC = () => {
   const [favorites, setFavorites] = useState<Snippet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { copiedId, copySnippet, toggleFavorite: toggleFav, deleteSnippet } = useSnippets();
+  const gridFavorites = useMemo(() => padGridItems(favorites, NUM_COLUMNS), [favorites]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -53,19 +55,22 @@ export const FavoritesScreen: React.FC = () => {
   }, [toggleFav]);
 
   const renderItem = useCallback(
-    ({ item }: { item: Snippet }) => (
-      <SnippetCard
-        snippet={item}
-        isCopied={copiedId === item.id}
-        onCopy={copySnippet}
-        onFavorite={handleToggleFav}
-        onEdit={snippet => navigation.navigate('AddSnippet', { snippetId: snippet.id })}
-        onDelete={async id => {
-          await deleteSnippet(id);
-          setFavorites(prev => prev.filter(s => s.id !== id));
-        }}
-      />
-    ),
+    ({ item }: { item: GridListItem<Snippet> }) =>
+      isGridPlaceholderItem(item) ? (
+        <View style={styles.cardPlaceholder} />
+      ) : (
+        <SnippetCard
+          snippet={item}
+          isCopied={copiedId === item.id}
+          onCopy={copySnippet}
+          onFavorite={handleToggleFav}
+          onEdit={snippet => navigation.navigate('AddSnippet', { snippetId: snippet.id })}
+          onDelete={async id => {
+            await deleteSnippet(id);
+            setFavorites(prev => prev.filter(s => s.id !== id));
+          }}
+        />
+      ),
     [copiedId, copySnippet, deleteSnippet, handleToggleFav, navigation]
   );
 
@@ -80,7 +85,7 @@ export const FavoritesScreen: React.FC = () => {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <FlatList
-        data={favorites}
+        data={gridFavorites}
         keyExtractor={item => item.id}
         renderItem={renderItem}
         numColumns={NUM_COLUMNS}
@@ -109,7 +114,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list: { paddingTop: 2, paddingBottom: 112 },
-  row: { justifyContent: 'space-between', paddingHorizontal: 12 },
+  row: { alignItems: 'stretch', justifyContent: 'space-between', paddingHorizontal: 12, gap: 8 },
+  cardPlaceholder: { flex: 1, marginBottom: 8 },
   count: {
     ...textFont(),
     fontSize: 13,

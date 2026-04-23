@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Home, Heart, Moon, Settings, Sun } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -84,7 +85,7 @@ const TabItem: React.FC<TabItemProps> = ({ label, isFocused, onPress, icon: Icon
 
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
   const bottomOffset = Math.max(insets.bottom, 10);
 
   return (
@@ -96,15 +97,16 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         },
       ]}
     >
-      <View
-        pointerEvents="none"
-        style={[
-          styles.tabBarBackdrop,
-          {
-            backgroundColor: 'transparent',
-          },
-        ]}
-      />
+      <View pointerEvents="none" style={styles.tabBarBackdrop}>
+        {Platform.OS === 'ios' ? (
+          <BlurView
+            intensity={mode === 'dark' ? 48 : 56}
+            tint={mode === 'dark' ? 'dark' : 'light'}
+            style={StyleSheet.absoluteFillObject}
+          />
+        ) : null}
+        <View style={[styles.tabBarShade, { backgroundColor: theme.tabBackdrop }]} />
+      </View>
       <View style={[styles.tabBar, { backgroundColor: theme.tabGlass, shadowColor: theme.shadow }]}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
@@ -225,6 +227,10 @@ const styles = StyleSheet.create({
   tabBarBackdrop: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 28,
+    overflow: 'hidden',
+  },
+  tabBarShade: {
+    ...StyleSheet.absoluteFillObject,
   },
   tabItem: {
     flex: 1,

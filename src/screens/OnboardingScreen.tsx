@@ -6,7 +6,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import Animated, { FadeInRight, FadeOutLeft } from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
@@ -22,13 +21,6 @@ export const OnboardingScreen: React.FC = () => {
   const navigation = useNavigation<NavProp>();
   const { theme } = useTheme();
   const [step, setStep] = useState(0);
-
-  const handleGoogleSignIn = () => {
-    Alert.alert(
-      'Google sign-in',
-      'This build now includes the optional Google sign-in entry point. The actual Google authentication flow still needs OAuth setup before accounts can connect.'
-    );
-  };
 
   const steps = [
     {
@@ -46,24 +38,6 @@ export const OnboardingScreen: React.FC = () => {
           <Text style={[styles.guideLine, { color: theme.text }]}>Finance: IBAN or bank account details, PayPal or payment links, tax numbers, invoice details.</Text>
           <Text style={[styles.guideLine, { color: theme.text }]}>Work: work email, company address, Zoom or Meet links, templates, signatures.</Text>
           <Text style={[styles.guideLine, { color: theme.text }]}>Other: anything that does not fit the categories above.</Text>
-        </View>
-      ),
-    },
-    {
-      title: 'Optional Google sign-in',
-      subtitle: 'Sign in later if you want backup and device sync tied to your Google account.',
-      accent: theme.primary,
-      body: (
-        <View style={styles.guideList}>
-          <Text style={[styles.guideLine, { color: theme.text }]}>Google sign-in is optional. You can keep using Qoppy locally without creating an account.</Text>
-          <Text style={[styles.guideLine, { color: theme.text }]}>When connected, it is meant to support backup, device sync, and account recovery.</Text>
-          <TouchableOpacity
-            style={[styles.googleButton, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
-            onPress={handleGoogleSignIn}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.googleButtonText, { color: theme.text }]}>Continue with Google</Text>
-          </TouchableOpacity>
         </View>
       ),
     },
@@ -178,18 +152,6 @@ const styles = StyleSheet.create({
   guideLine: {
     fontSize: 14,
     lineHeight: 21,
-  },
-  googleButton: {
-    marginTop: 4,
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-  },
-  googleButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
   },
   dots: {
     flexDirection: 'row',

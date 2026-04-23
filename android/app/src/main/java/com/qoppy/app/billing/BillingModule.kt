@@ -1,5 +1,6 @@
 package com.qoppy.app.billing
 
+import android.app.Activity
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.Promise
@@ -113,7 +114,7 @@ class BillingModule(
 
     @ReactMethod
     fun launchPurchase(productId: String, offerToken: String, promise: Promise) {
-        val activity = currentActivity
+        val activity = reactApplicationContext.currentActivity as? Activity
         if (activity == null) {
             promise.reject(
                 "BILLING_NO_ACTIVITY",
