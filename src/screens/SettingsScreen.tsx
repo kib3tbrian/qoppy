@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as Haptics from 'expo-haptics';
 import {
   CircleUserRound,
   Crown,
@@ -133,6 +134,9 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const handleToggleHaptic = async (value: boolean) => {
+    if (value) {
+      await Haptics.selectionAsync();
+    }
     setHapticEnabled(value);
     await db.setPreference('haptic', value ? 'true' : 'false');
   };
@@ -301,8 +305,8 @@ export const SettingsScreen: React.FC = () => {
           <Share2 size={20} color={theme.primary} />
         </View>
         <View style={styles.shareTextWrap}>
-          <Text style={[styles.shareTitle, { color: theme.text }]}>Share the app</Text>
-          <Text style={[styles.shareSub, { color: theme.textSecondary }]}>Invite someone with the native share sheet.</Text>
+          <Text style={[styles.shareTitle, { color: theme.text }]}>Share Qoppy</Text>
+          <Text style={[styles.shareSub, { color: theme.textSecondary }]}>Invite your friends or colleagues to try Qoppy.</Text>
         </View>
         <ChevronRight size={18} color={theme.textMuted} />
       </TouchableOpacity>

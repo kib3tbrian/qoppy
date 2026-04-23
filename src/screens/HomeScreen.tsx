@@ -14,8 +14,11 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Plus } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { SnippetCard } from '../components/cards/SnippetCard';
+import { SnippetCardSkeleton } from '../components/cards/SnippetCardSkeleton';
 import { CategoryChipBar } from '../components/common/CategoryChipBar';
 import { SearchBar } from '../components/common/SearchBar';
 import { useSnippets } from '../hooks/useSnippets';
@@ -73,18 +76,20 @@ export const HomeScreen: React.FC = () => {
   }, [deleteSnippet]);
 
   const renderItem = useCallback(
-    ({ item }: { item: GridListItem<Snippet> }) =>
+    ({ item, index }: { item: GridListItem<Snippet>; index: number }) =>
       isGridPlaceholderItem(item) ? (
         <View style={styles.cardPlaceholder} />
       ) : (
-        <SnippetCard
-          snippet={item}
-          isCopied={copiedId === item.id}
-          onCopy={copySnippet}
-          onFavorite={toggleFavorite}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
+        <Animated.View entering={FadeInDown.delay(Math.min(index * 50, 500)).springify()} style={{ flex: 1 }}>
+          <SnippetCard
+            snippet={item}
+            isCopied={copiedId === item.id}
+            onCopy={copySnippet}
+            onFavorite={toggleFavorite}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        </Animated.View>
       ),
     [copiedId, copySnippet, toggleFavorite, handleEdit, handleDelete]
   );
@@ -121,16 +126,17 @@ export const HomeScreen: React.FC = () => {
               activeId={activeCategory}
               onSelect={filterByCategory}
             />
-            {!isLoading && (
-              <Text style={[styles.count, { color: theme.textSecondary }]}>
-                {snippets.length} snippet{snippets.length !== 1 ? 's' : ''}
-              </Text>
-            )}
           </View>
         }
         ListEmptyComponent={
           isLoading ? (
-            <ActivityIndicator style={styles.loader} color={theme.primary} size="large" />
+            <View style={styles.skeletonGrid}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <View key={i} style={styles.skeletonItem}>
+                  <SnippetCardSkeleton />
+                </View>
+              ))}
+            </View>
           ) : (
             <EmptyState />
           )
@@ -139,17 +145,29 @@ export const HomeScreen: React.FC = () => {
 
       <TouchableOpacity
         style={[
-          styles.fab,
+          styles.fabWrap,
           {
-            backgroundColor: theme.primary,
-            shadowColor: theme.primary,
             bottom: insets.bottom + 100,
+            shadowColor: theme.primary,
           },
         ]}
         onPress={() => navigation.navigate('AddSnippet', {})}
         activeOpacity={0.85}
       >
-        <Plus size={26} color={theme.onPrimary} strokeWidth={2.5} />
+        <BlurView
+          intensity={80}
+          tint={mode === 'dark' ? 'dark' : 'light'}
+          style={[
+            styles.fab,
+            {
+              backgroundColor: mode === 'dark' ? `${theme.primary}80` : `${theme.primary}A0`,
+              borderColor: `${theme.primary}80`,
+              borderWidth: 1,
+            },
+          ]}
+        >
+          <Plus size={26} color={theme.onPrimary} strokeWidth={2.5} />
+        </BlurView>
       </TouchableOpacity>
 
       <Modal
@@ -250,8 +268,35 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 23,
   },
-  loader: {
-    marginTop: 80,
+  skeletonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 12,
+    gap: 8,
+    marginTop: 16,
+  },
+  skeletonItem: {
+    width: '48%',
+    height: 138,
+  },
+  fabWrap: {
+    position: 'absolute',
+    right: 24,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  fab: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   modalOverlay: {
     flex: 1,
@@ -296,19 +341,6 @@ const styles = StyleSheet.create({
     ...textFont(),
     fontSize: 15,
     fontWeight: '700',
-  },
-  fab: {
-    position: 'absolute',
-    right: 24,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
-    elevation: 8,
   },
 });
 

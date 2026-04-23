@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Check, Crown, LoaderCircle, X } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { textFont } from '../constants/typography';
 import { useTheme } from '../hooks/useTheme';
 import { db } from '../services/database';
@@ -272,18 +273,16 @@ export const PaywallScreen: React.FC = () => {
       >
         {isPurchasing ? (
           <View style={styles.loadingRow}>
-            <LoaderCircle size={18} color={theme.onPrimary} />
-            <Text style={[styles.ctaText, { color: theme.onPrimary }]}>Opening Google Play...</Text>
+            <LoaderCircle size={18} color={theme.onPrimary} style={{ transform: [{ rotate: '0deg' }] }} />
+            <Text style={[styles.ctaText, { color: theme.onPrimary }]}>Processing...</Text>
           </View>
         ) : (
-          <Text style={[styles.ctaText, { color: theme.onPrimary }]}>
-            Continue with {active.label} - {active.price}
-          </Text>
+          <Text style={[styles.ctaText, { color: theme.onPrimary }]}>Start my 1-week free trial</Text>
         )}
       </TouchableOpacity>
 
       <Text style={[styles.finePrint, { color: theme.textSecondary }]}>
-        Payments are handled through Google Play. Payment methods are managed inside the Play purchase popup.
+        Unlock your full potential with Qoppy Premium. Cancel anytime.
       </Text>
 
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.dismiss}>

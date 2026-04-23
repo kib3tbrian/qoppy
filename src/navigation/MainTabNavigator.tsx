@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Home, Heart, Moon, Settings, Sun } from 'lucide-react-native';
+import { ClipboardList, Heart, Moon, Settings, Sun } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -22,7 +23,7 @@ import { TAB_TRANSITION_CONFIG } from '../constants';
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const TAB_ICONS: Record<string, React.ComponentType<any>> = {
-  Home,
+  Home: ClipboardList,
   Favorites: Heart,
   Settings,
 };
@@ -91,18 +92,32 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const bottomOffset = Math.max(insets.bottom, 10);
 
   return (
-    <View
-      style={[
-        styles.tabBarWrap,
-        {
-          bottom: bottomOffset,
-        },
-      ]}
-    >
+    <>
+      <LinearGradient
+        colors={['transparent', theme.background]}
+        locations={[0, 0.7]}
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: bottomOffset + 90,
+        }}
+        pointerEvents="none"
+      />
+      <View
+        style={[
+          styles.tabBarWrap,
+          {
+            bottom: bottomOffset,
+          },
+        ]}
+      >
       <View pointerEvents="none" style={styles.tabBarBackdrop}>
         <BlurView
           intensity={mode === 'dark' ? 72 : 82}
           tint={mode === 'dark' ? 'dark' : 'light'}
+          experimentalBlurMethod="dimezisBlurView"
           style={StyleSheet.absoluteFillObject}
         />
         <View
@@ -130,7 +145,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           const { options } = descriptors[route.key];
           const label = options.tabBarLabel ?? route.name;
           const isFocused = state.index === index;
-          const Icon = TAB_ICONS[route.name] ?? Home;
+          const Icon = TAB_ICONS[route.name] ?? ClipboardList;
 
           const onPress = () => {
             const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -150,8 +165,9 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             />
           );
         })}
+        </View>
       </View>
-    </View>
+    </>
   );
 }
 
@@ -178,10 +194,10 @@ export const MainTabNavigator: React.FC = () => {
         },
         tabBarBackground: () => null,
         headerTitleStyle: {
-          ...textFont(true), // Assuming textFont(true) might return bold, or just apply it
-          fontWeight: 'bold',
+          ...textFont(true),
+          fontWeight: '900',
           color: theme.text,
-          fontSize: 20,
+          fontSize: 22,
         },
       }}
     >
