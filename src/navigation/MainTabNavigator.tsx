@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Home, Heart, Moon, Settings, Sun } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,7 +38,7 @@ interface TabItemProps {
 }
 
 const TabItem: React.FC<TabItemProps> = ({ label, isFocused, onPress, icon: Icon, routeName }) => {
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
   const activeProgress = useSharedValue(isFocused ? 1 : 0);
 
   React.useEffect(() => {
@@ -71,6 +71,16 @@ const TabItem: React.FC<TabItemProps> = ({ label, isFocused, onPress, icon: Icon
           fill={isFocused && routeName === 'Favorites' ? theme.onPrimary : 'transparent'}
         />
       </View>
+      <Text
+        style={[
+          styles.tabLabel,
+          {
+            color: isFocused ? (mode === 'dark' ? theme.text : theme.primary) : theme.tabInactive,
+          },
+        ]}
+      >
+        {label}
+      </Text>
     </AnimatedTouchableOpacity>
   );
 };
@@ -168,8 +178,8 @@ export const MainTabNavigator: React.FC = () => {
         },
         tabBarBackground: () => null,
         headerTitleStyle: {
-          ...textFont(),
-          fontWeight: '900',
+          ...textFont(true), // Assuming textFont(true) might return bold, or just apply it
+          fontWeight: 'bold',
           color: theme.text,
           fontSize: 20,
         },
@@ -244,7 +254,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 56,
     borderRadius: 20,
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 4,
     backgroundColor: 'transparent',
   },
@@ -257,9 +267,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   tabLabel: {
-    ...textFont(),
-    fontSize: 11,
+    ...textFont(true),
+    fontSize: 10,
     fontWeight: 'bold',
+    marginTop: 4,
     backgroundColor: 'transparent',
   },
 });
