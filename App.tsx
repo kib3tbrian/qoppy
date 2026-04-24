@@ -11,7 +11,15 @@ import * as WebBrowser from 'expo-web-browser';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { textFont } from './src/constants/typography';
 import { ThemeProvider, useTheme } from './src/hooks/useTheme';
-import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold, Inter_900Black } from '@expo-google-fonts/inter';
+import { useFonts } from 'expo-font';
+import { 
+  Inter_400Regular, 
+  Inter_500Medium, 
+  Inter_600SemiBold, 
+  Inter_700Bold, 
+  Inter_800ExtraBold, 
+  Inter_900Black 
+} from '@expo-google-fonts/inter';
 
 WebBrowser.maybeCompleteAuthSession();
 
