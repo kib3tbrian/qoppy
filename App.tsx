@@ -13,13 +13,13 @@ import { textFont } from './src/constants/typography';
 import { ThemeProvider, useTheme } from './src/hooks/useTheme';
 import { useFonts } from 'expo-font';
 import { 
-  Inter_400Regular, 
-  Inter_500Medium, 
-  Inter_600SemiBold, 
-  Inter_700Bold, 
-  Inter_800ExtraBold, 
-  Inter_900Black 
-} from '@expo-google-fonts/inter';
+  DMSans_400Regular, 
+  DMSans_500Medium, 
+  DMSans_600SemiBold, 
+  DMSans_700Bold, 
+  DMSans_800ExtraBold, 
+  DMSans_900Black 
+} from '@expo-google-fonts/dm-sans';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -47,13 +47,12 @@ const AppShell: React.FC = () => {
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    Inter: Inter_400Regular,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Inter_800ExtraBold,
-    Inter_900Black,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_600SemiBold,
+    DMSans_700Bold,
+    DMSans_800ExtraBold,
+    DMSans_900Black,
   });
 
   if (!fontsLoaded) {
