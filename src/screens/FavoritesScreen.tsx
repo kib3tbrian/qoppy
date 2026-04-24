@@ -117,16 +117,15 @@ const styles = StyleSheet.create({
   row: { alignItems: 'stretch', justifyContent: 'space-between', paddingHorizontal: 12, gap: 8 },
   cardPlaceholder: { flex: 1, marginBottom: 8 },
   count: {
-    ...textFont(),
+    ...textFont('regular'),
     fontSize: 13,
-    fontWeight: '600',
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 32, gap: 12 },
-  emptyIcon: { ...textFont(true), fontSize: 44 },
-  emptyTitle: { ...textFont(), fontSize: 22, fontWeight: '800' },
-  emptySubtitle: { ...textFont(), fontSize: 15, textAlign: 'center', lineHeight: 23 },
+  emptyIcon: { ...textFont('regular', true), fontSize: 44 },
+  emptyTitle: { ...textFont('bold'), fontSize: 22 },
+  emptySubtitle: { ...textFont('regular'), fontSize: 15, textAlign: 'center', lineHeight: 23 },
 });
 
 export default FavoritesScreen;

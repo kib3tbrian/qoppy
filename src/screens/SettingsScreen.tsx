@@ -405,15 +405,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   premiumTitle: {
-    ...textFont(),
+    ...textFont('bold'),
     fontSize: 24,
-    fontWeight: '900',
   },
   premiumSub: {
-    ...textFont(),
+    ...textFont('regular'),
     fontSize: 15,
     lineHeight: 22,
-    fontWeight: '700',
   },
   shareCard: {
     flexDirection: 'row',
@@ -435,25 +433,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   shareTitle: {
-    ...textFont(),
+    ...textFont('semibold'),
     fontSize: 16,
-    fontWeight: '800',
   },
   shareSub: {
-    ...textFont(),
+    ...textFont('regular'),
     fontSize: 13,
     marginTop: 2,
     lineHeight: 19,
   },
   section: { marginBottom: 24 },
-  sectionTitle: { ...textFont(), fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, paddingLeft: 4 },
+  sectionTitle: { ...textFont('bold'), fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, paddingLeft: 4 },
   sectionCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 14, borderBottomWidth: 1 },
   rowIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   rowText: { flex: 1 },
-  rowLabel: { ...textFont(), fontSize: 16, fontWeight: '700' },
-  rowSublabel: { ...textFont(), fontSize: 13, marginTop: 2, lineHeight: 19 },
-  version: { ...textFont(), textAlign: 'center', fontSize: 13, marginTop: 8 },
+  rowLabel: { ...textFont('semibold'), fontSize: 16 },
+  rowSublabel: { ...textFont('regular'), fontSize: 13, marginTop: 2, lineHeight: 19 },
+  version: { ...textFont('regular'), textAlign: 'center', fontSize: 13, marginTop: 8 },
 });
 
 export default SettingsScreen;

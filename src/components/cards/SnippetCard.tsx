@@ -259,20 +259,18 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   categoryText: {
-    ...textFont(),
+    ...textFont('medium'),
     fontSize: 10,
-    fontWeight: '600',
     letterSpacing: 0.3,
   },
   title: {
-    ...textFont(),
+    ...textFont('semibold'),
     fontSize: 14,
-    fontWeight: '700',
     lineHeight: 18,
     marginBottom: 4,
   },
   content: {
-    ...textFont(),
+    ...textFont('regular'),
     fontSize: 12,
     lineHeight: 16,
     flexShrink: 1,
@@ -292,9 +290,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   copyLabel: {
-    ...textFont(),
+    ...textFont('regular'),
     fontSize: 10,
-    fontWeight: '500',
   },
 });
 

@@ -239,11 +239,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   count: {
-    ...textFont(),
+    ...textFont('regular'),
     fontSize: 13,
     paddingHorizontal: 16,
     paddingBottom: 2,
-    fontWeight: '600',
   },
   empty: {
     alignItems: 'center',
@@ -251,19 +250,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   emptyIcon: {
-    ...textFont(true),
+    ...textFont('regular', true),
     fontSize: 40,
     marginBottom: 16,
   },
   emptyTitle: {
-    ...textFont(),
+    ...textFont('bold'),
     fontSize: 22,
-    fontWeight: '800',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtitle: {
-    ...textFont(),
+    ...textFont('regular'),
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 23,
@@ -309,13 +307,12 @@ const styles = StyleSheet.create({
     padding: 22,
   },
   modalTitle: {
-    ...textFont(),
+    ...textFont('bold'),
     fontSize: 22,
-    fontWeight: '900',
     marginBottom: 10,
   },
   modalBody: {
-    ...textFont(),
+    ...textFont('regular'),
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 18,
@@ -327,9 +324,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   modalPrimaryText: {
-    ...textFont(),
+    ...textFont('bold'),
     fontSize: 16,
-    fontWeight: '800',
   },
   modalSecondaryButton: {
     borderRadius: 16,
@@ -338,9 +334,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalSecondaryText: {
-    ...textFont(),
+    ...textFont('semibold'),
     fontSize: 15,
-    fontWeight: '700',
   },
 });
 

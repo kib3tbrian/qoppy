@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Category } from '../../types';
 import { useTheme } from '../../hooks/useTheme';
+import { textFont } from '../../constants/typography';
 
 interface CategoryChipBarProps {
   categories: Category[];
@@ -114,8 +115,8 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   chipText: {
+    ...textFont('medium'),
     fontSize: 12,
-    fontWeight: '600',
     letterSpacing: 0.2,
   },
 });

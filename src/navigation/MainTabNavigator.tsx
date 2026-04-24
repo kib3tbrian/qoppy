@@ -197,8 +197,7 @@ export const MainTabNavigator: React.FC = () => {
         },
         tabBarBackground: () => null,
         headerTitleStyle: {
-          ...textFont(true),
-          fontWeight: '900',
+          ...textFont('bold'),
           color: theme.text,
           fontSize: 22,
         },
@@ -286,9 +285,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   tabLabel: {
-    ...textFont(true),
+    ...textFont('semibold'),
     fontSize: 10,
-    fontWeight: 'bold',
     marginTop: 4,
     backgroundColor: 'transparent',
   },
