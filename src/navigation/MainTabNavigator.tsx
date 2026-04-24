@@ -128,9 +128,9 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             styles.tabBarGlassTint,
             {
               backgroundColor:
-                mode === 'dark' ? 'rgba(20, 26, 35, 0.46)' : 'rgba(255, 255, 255, 0.08)',
+                mode === 'dark' ? `${theme.primary}18` : `${theme.primary}0D`,
               borderColor:
-                mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.16)',
+                mode === 'dark' ? `${theme.primary}1A` : `${theme.primary}15`,
             },
           ]}
         />

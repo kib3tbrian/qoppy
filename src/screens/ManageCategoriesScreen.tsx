@@ -15,6 +15,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 import {
   Pencil,
@@ -220,6 +221,7 @@ const EditorModal: React.FC<EditorModalProps> = ({ visible, initial, onSave, onC
 // ── Main screen ────────────────────────────────────────────────────────────
 
 export const ManageCategoriesScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { categories, createCategory, updateCategory, deleteCategory } = useCategories();
   const [editorVisible, setEditorVisible] = useState(false);
@@ -279,7 +281,18 @@ export const ManageCategoriesScreen: React.FC = () => {
       />
 
       {/* FAB */}
-      <TouchableOpacity style={[styles.fab, { backgroundColor: theme.primary, shadowColor: theme.primary }]} onPress={openNew} activeOpacity={0.85}>
+      <TouchableOpacity
+        style={[
+          styles.fab,
+          {
+            backgroundColor: theme.primary,
+            shadowColor: theme.primary,
+            bottom: insets.bottom + 100,
+          }
+        ]}
+        onPress={openNew}
+        activeOpacity={0.85}
+      >
         <Plus size={26} color={theme.onPrimary} strokeWidth={2.5} />
       </TouchableOpacity>
 
@@ -308,7 +321,7 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48 },
   emptyTitle: { fontSize: 20, fontWeight: '700' },
   emptySubtitle: { fontSize: 14 },
-  fab: { position: 'absolute', bottom: 32, right: 24, width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
+  fab: { position: 'absolute', right: 24, width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
 });
 
 const modal = StyleSheet.create({
