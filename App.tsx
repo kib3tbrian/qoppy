@@ -11,6 +11,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { textFont } from './src/constants/typography';
 import { ThemeProvider, useTheme } from './src/hooks/useTheme';
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold, Inter_900Black } from '@expo-google-fonts/inter';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -37,6 +38,20 @@ const AppShell: React.FC = () => {
 };
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Inter: Inter_400Regular,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
+    Inter_900Black,
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
     <ThemeProvider>
       <AppShell />

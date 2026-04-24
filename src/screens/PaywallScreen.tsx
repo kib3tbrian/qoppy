@@ -277,7 +277,7 @@ export const PaywallScreen: React.FC = () => {
             <Text style={[styles.ctaText, { color: theme.onPrimary }]}>Processing...</Text>
           </View>
         ) : (
-          <Text style={[styles.ctaText, { color: theme.onPrimary }]}>Start my 1-week free trial</Text>
+          <Text style={[styles.ctaText, { color: theme.onPrimary }]}>Continue to Pay</Text>
         )}
       </TouchableOpacity>
 

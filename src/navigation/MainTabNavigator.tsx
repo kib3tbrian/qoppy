@@ -94,14 +94,17 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   return (
     <>
       <LinearGradient
-        colors={['transparent', theme.background]}
-        locations={[0, 0.7]}
+        colors={[
+          mode === 'dark' ? 'rgba(15, 15, 19, 0)' : 'rgba(255, 255, 255, 0)',
+          theme.background,
+        ]}
+        locations={[0, 0.85]}
         style={{
           position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
-          height: bottomOffset + 90,
+          height: bottomOffset + 130,
         }}
         pointerEvents="none"
       />
