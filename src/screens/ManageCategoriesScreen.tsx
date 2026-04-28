@@ -40,6 +40,7 @@ import {
   Coffee,
 } from 'lucide-react-native';
 import { useCategories } from '../hooks/useCategories';
+import { useSnippets } from '../hooks/useSnippets';
 import { Category } from '../types';
 import { CATEGORY_COLORS, ANIMATION_DURATION } from '../constants';
 import { useTheme } from '../hooks/useTheme';
@@ -225,6 +226,7 @@ export const ManageCategoriesScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { categories, createCategory, updateCategory, deleteCategory } = useCategories();
+  const { refresh: refreshSnippets } = useSnippets();
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingCat, setEditingCat] = useState<Partial<Category> | null>(null);
 
@@ -241,10 +243,17 @@ export const ManageCategoriesScreen: React.FC = () => {
   const handleDelete = (cat: Category) => {
     Alert.alert(
       `Delete "${cat.name}"?`,
-      'Snippets in this category will become uncategorised.',
+      'Snippets in this category will move to the "Other" category.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteCategory(cat.id) },
+        { 
+          text: 'Delete', 
+          style: 'destructive', 
+          onPress: async () => {
+            await deleteCategory(cat.id);
+            await refreshSnippets();
+          } 
+        },
       ]
     );
   };
@@ -255,6 +264,7 @@ export const ManageCategoriesScreen: React.FC = () => {
     } else {
       await createCategory(name, color, icon);
     }
+    await refreshSnippets();
     setEditorVisible(false);
   };
 

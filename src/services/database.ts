@@ -92,7 +92,7 @@ class DatabaseService {
       {
         id: `${now.toString(36)}-example-home`,
         title: 'Home Address',
-        content: '123 Palm Avenue, Apt 4B, Nairobi',
+        content: '15 Rue de Rivoli, 75004 Paris, France',
         categoryId: 'personal',
       },
       {
@@ -340,7 +340,14 @@ class DatabaseService {
 
   async deleteCategory(id: string): Promise<void> {
     const db = this.getDb();
-    // ON DELETE SET NULL handles the snippets FK automatically
+    // Reassign snippets to 'other' category before deleting.
+    // If we are deleting 'other' itself, we let them become NULL (default behavior).
+    if (id !== 'other') {
+      await db.runAsync(
+        `UPDATE snippets SET category_id = 'other' WHERE category_id = ?`,
+        [id]
+      );
+    }
     await db.runAsync(`DELETE FROM categories WHERE id = ?`, [id]);
   }
 

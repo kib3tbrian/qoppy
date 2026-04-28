@@ -125,7 +125,7 @@ export const AddSnippetScreen: React.FC = () => {
           style={[styles.input, { backgroundColor: theme.surfaceAlt, borderColor: theme.border, color: theme.text }]}
           value={title}
           onChangeText={setTitle}
-          placeholder="e.g. Home Address"
+          placeholder="e.g. Adresse Domicile"
           placeholderTextColor={theme.textMuted}
           maxLength={60}
         />

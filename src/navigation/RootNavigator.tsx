@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, LogBox, Image, Text, StyleSheet } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 
 import { db } from '../services/database';
 import { RootStackParamList } from '../types';
@@ -80,6 +81,12 @@ export const RootNavigator: React.FC = () => {
       unsubscribe?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (isReady && isThemeReady) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [isReady, isThemeReady]);
 
   if (!isReady || !isThemeReady) {
     return <LaunchSplash backgroundColor={splashBg} textColor={splashText} />;
