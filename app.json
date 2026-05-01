@@ -5,6 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "backgroundColor": "#EDE9F6",
     "scheme": "qoppy",
     "icon": "./assets/icon.png",
     "splash": {
@@ -27,6 +28,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0F0F13"
       },
+      "backgroundColor": "#EDE9F6",
       "package": "com.qoppy.app",
       "versionCode": 1,
       "permissions": []

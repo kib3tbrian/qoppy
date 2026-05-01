@@ -7,7 +7,9 @@ import {
   Text,
   StyleSheet,
   View,
+  TouchableOpacity,
 } from 'react-native';
+import { Settings } from 'lucide-react-native';
 import { Category } from '../../types';
 import { useTheme } from '../../hooks/useTheme';
 import { textFont } from '../../constants/typography';
@@ -16,12 +18,14 @@ interface CategoryChipBarProps {
   categories: Category[];
   activeId: string | null;
   onSelect: (id: string | null) => void;
+  onManage?: () => void;
 }
 
 export const CategoryChipBar: React.FC<CategoryChipBarProps> = ({
   categories,
   activeId,
   onSelect,
+  onManage,
 }) => {
   const { theme } = useTheme();
 
@@ -49,6 +53,16 @@ export const CategoryChipBar: React.FC<CategoryChipBarProps> = ({
           theme={theme}
         />
       ))}
+
+      {onManage && (
+        <TouchableOpacity
+          onPress={onManage}
+          style={[styles.manageBtn, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
+        >
+          <Settings size={14} color={theme.textSecondary} />
+          <Text style={[styles.manageText, { color: theme.textSecondary }]}>Manage</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 };
@@ -118,6 +132,21 @@ const styles = StyleSheet.create({
     ...textFont('medium'),
     fontSize: 12,
     letterSpacing: 0.2,
+  },
+  manageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    gap: 6,
+    marginLeft: 4,
+  },
+  manageText: {
+    ...textFont('medium'),
+    fontSize: 12,
   },
 });
 

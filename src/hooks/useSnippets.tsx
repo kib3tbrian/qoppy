@@ -11,6 +11,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { db } from '../services/database';
 import { Snippet, SnippetInsert, SnippetUpdate } from '../types';
+import { useRatingPrompt } from './useRatingPrompt';
 
 const FREE_SNIPPET_LIMIT = 10;
 
@@ -46,6 +47,7 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [searchQuery, setSearchQuery] = useState('');
   const [premiumPromptVisible, setPremiumPromptVisible] = useState(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { incrementUsage } = useRatingPrompt();
 
   useEffect(() => {
     let filtered = allSnippets;
@@ -111,6 +113,9 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           s.id === snippet.id ? { ...s, useCount: s.useCount + 1 } : s
         )
       );
+
+      // Increment global usage for rating prompt
+      await incrementUsage();
     } catch (e: any) {
       setError(e.message ?? 'Failed to copy to clipboard');
     }

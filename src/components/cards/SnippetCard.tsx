@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
+  Share,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -20,7 +21,7 @@ import Animated, {
   interpolateColor,
   runOnJS,
 } from 'react-native-reanimated';
-import { Check, Copy, Heart } from 'lucide-react-native';
+import { Check, Copy, Heart, Share2 } from 'lucide-react-native';
 import { Snippet } from '../../types';
 import { ANIMATION_DURATION } from '../../constants';
 import { textFont } from '../../constants/typography';
@@ -96,6 +97,17 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
   const handleFavorite = useCallback(() => {
     onFavorite(snippet.id);
   }, [snippet.id, onFavorite]);
+
+  const handleShare = useCallback(async () => {
+    try {
+      await Share.share({
+        message: snippet.content,
+        title: snippet.title,
+      });
+    } catch (error) {
+      console.error('Error sharing snippet:', error);
+    }
+  }, [snippet.content, snippet.title]);
 
   // ── Render ──────────────────────────────────────────────────────────────
 
@@ -183,18 +195,34 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
             )}
           </View>
 
-          {/* Favorite button */}
-          <TouchableOpacity
-            onPress={handleFavorite}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Heart
-              size={16}
-              color={snippet.isFavorite ? theme.danger : theme.textMuted}
-              fill={snippet.isFavorite ? theme.danger : 'transparent'}
-              strokeWidth={2}
-            />
-          </TouchableOpacity>
+          <View style={styles.actions}>
+            {/* Share button */}
+            <TouchableOpacity
+              onPress={handleShare}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              <Share2
+                size={16}
+                color={theme.textMuted}
+                strokeWidth={2}
+              />
+            </TouchableOpacity>
+
+            {/* Favorite button */}
+            <TouchableOpacity
+              onPress={handleFavorite}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              <Heart
+                size={16}
+                color={snippet.isFavorite ? theme.danger : theme.textMuted}
+                fill={snippet.isFavorite ? theme.danger : 'transparent'}
+                strokeWidth={2}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
       </AnimatedTouchable>
     </Animated.View>
@@ -280,6 +308,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 8,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
   copyBadge: {
     flexDirection: 'row',

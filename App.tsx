@@ -14,6 +14,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { textFont } from './src/constants/typography';
 import { ThemeProvider, useTheme } from './src/hooks/useTheme';
+import { CategoriesProvider } from './src/hooks/useCategories';
 import { useFonts } from 'expo-font';
 import { 
   Rubik_400Regular, 
@@ -64,7 +65,9 @@ export default function App() {
 
   return (
     <ThemeProvider>
-      <AppShell />
+      <CategoriesProvider>
+        <AppShell />
+      </CategoriesProvider>
     </ThemeProvider>
   );
 }

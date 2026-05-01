@@ -1,10 +1,12 @@
-// src/hooks/useCategories.ts
+// src/hooks/useCategories.tsx
+//
+// Shared state for categories. Ensures all screens see updates instantly.
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useContext, useMemo } from 'react';
 import { db } from '../services/database';
 import { Category } from '../types';
 
-interface UseCategoriesReturn {
+interface CategoriesContextValue {
   categories: Category[];
   isLoading: boolean;
   createCategory: (name: string, color: string, icon: string) => Promise<Category>;
@@ -13,7 +15,9 @@ interface UseCategoriesReturn {
   refresh: () => Promise<void>;
 }
 
-export function useCategories(): UseCategoriesReturn {
+const CategoriesContext = createContext<CategoriesContextValue | null>(null);
+
+export const CategoriesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -27,7 +31,9 @@ export function useCategories(): UseCategoriesReturn {
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   const createCategory = useCallback(async (name: string, color: string, icon: string) => {
     const cat = await db.createCategory(name, color, icon);
@@ -45,5 +51,26 @@ export function useCategories(): UseCategoriesReturn {
     setCategories(prev => prev.filter(c => c.id !== id));
   }, []);
 
-  return { categories, isLoading, createCategory, updateCategory, deleteCategory, refresh };
-}
+  const value = useMemo(() => ({
+    categories,
+    isLoading,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+    refresh,
+  }), [categories, isLoading, createCategory, updateCategory, deleteCategory, refresh]);
+
+  return (
+    <CategoriesContext.Provider value={value}>
+      {children}
+    </CategoriesContext.Provider>
+  );
+};
+
+export const useCategories = (): CategoriesContextValue => {
+  const context = useContext(CategoriesContext);
+  if (!context) {
+    throw new Error('useCategories must be used within a CategoriesProvider');
+  }
+  return context;
+};

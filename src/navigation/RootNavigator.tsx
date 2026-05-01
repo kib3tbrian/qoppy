@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View, LogBox, Image, Text, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, LogBox, Image, Text, StyleSheet, StatusBar } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 
 import { db } from '../services/database';
@@ -36,9 +36,10 @@ export const RootNavigator: React.FC = () => {
   const [isReady, setIsReady] = useState(false);
   const [initialRoute, setInitialRoute] = useState<'Onboarding' | 'Main'>('Onboarding');
 
-  // Show splash immediately until both theme and DB are ready
-  const splashBg = isThemeReady ? theme.background : '#0F0F13';
-  const splashText = isThemeReady ? theme.text : '#FFFFFF';
+  // Use theme colors immediately to prevent flashes. 
+  // useTheme provides the correct mode (dark/light) based on system pref instantly.
+  const splashBg = theme.background;
+  const splashText = theme.text;
 
   const navTheme = {
     ...DarkTheme,
@@ -95,6 +96,10 @@ export const RootNavigator: React.FC = () => {
   return (
     <SnippetsProvider>
       <NavigationContainer theme={navTheme}>
+        <StatusBar 
+          barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} 
+          backgroundColor={theme.background} 
+        />
         <Stack.Navigator
           initialRouteName={initialRoute}
           screenOptions={{

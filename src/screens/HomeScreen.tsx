@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  StatusBar,
   Modal,
   Pressable,
 } from 'react-native';
@@ -106,7 +105,6 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
 
       <FlatList
         data={gridSnippets}
@@ -125,6 +123,7 @@ export const HomeScreen: React.FC = () => {
               categories={categories}
               activeId={activeCategory}
               onSelect={filterByCategory}
+              onManage={() => navigation.navigate('ManageCategories')}
             />
           </View>
         }

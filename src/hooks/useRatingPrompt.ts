@@ -3,11 +3,18 @@ import { Alert, Linking, Platform } from 'react-native';
 import { db } from '../services/database';
 
 export const useRatingPrompt = () => {
-  const triggerPrompt = useCallback(async () => {
+  const triggerPrompt = useCallback(async (force: boolean = false) => {
     try {
       const status = await db.getPreference('rating_status');
       if (status === 'rated' || status === 'declined') {
         return;
+      }
+
+      if (!force) {
+        const usageCount = await db.getPreference('total_usage_count', '0');
+        if (parseInt(usageCount, 10) < 20) {
+          return;
+        }
       }
 
       const lastPrompt = await db.getPreference('last_rating_prompt_date');
@@ -58,5 +65,15 @@ export const useRatingPrompt = () => {
     }
   }, []);
 
-  return { triggerPrompt };
+  const incrementUsage = useCallback(async () => {
+    const current = await db.getPreference('total_usage_count', '0');
+    const next = parseInt(current, 10) + 1;
+    await db.setPreference('total_usage_count', next.toString());
+    
+    if (next === 20) {
+      await triggerPrompt(true);
+    }
+  }, [triggerPrompt]);
+
+  return { triggerPrompt, incrementUsage };
 };
