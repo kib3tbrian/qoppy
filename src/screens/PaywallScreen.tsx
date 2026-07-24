@@ -24,18 +24,21 @@ const BENEFITS = [
   'No Watermark — send scripts without the "Sent via Sagent" tag. Professionalism only.',
 ];
 
-// Billing prices must match the Google Play Console products exactly:
-// monthly -> $9.99, yearly -> $89.99.
-const SUBSCRIPTION_SKUS = {
-  monthly: 'com.sagent.app.premium.monthly',
-  yearly: 'com.sagent.app.premium.yearly',
+// Google Play Console structure:
+// Product ID: sagent_pro (single subscription product)
+// Base Plans: pro-monthly (monthly), pro-yearly (yearly)
+const SUBSCRIPTION_PRODUCT_ID = 'sagent_pro';
+
+const BASE_PLAN_IDS = {
+  monthly: 'pro-monthly',
+  yearly: 'pro-yearly',
 } as const;
 
 // Hoisted so the array reference is stable across renders — prevents the
 // useSubscription skus effect from firing on every re-render.
-const SUBSCRIPTION_SKUS_LIST = Object.values(SUBSCRIPTION_SKUS) as string[];
+const SUBSCRIPTION_SKUS_LIST = [SUBSCRIPTION_PRODUCT_ID];
 
-type PlanKey = keyof typeof SUBSCRIPTION_SKUS;
+type PlanKey = keyof typeof BASE_PLAN_IDS;
 
 interface PlanConfig {
   label: string;
@@ -57,20 +60,6 @@ const getPeriodLabel = (billingPeriod?: string | null): string | null => {
     case 'P1Y': return '/year';
     default: return null;
   }
-};
-
-const mergePlanWithProduct = (
-  base: PlanConfig,
-  product: NativeSubscriptionProduct | undefined,
-): PlanConfig => {
-  if (!product) return base;
-  const offer = product.offers.find(o => o.formattedPrice);
-  if (!offer) return base;
-  return {
-    ...base,
-    price: offer.formattedPrice ?? base.price,
-    period: getPeriodLabel(offer.billingPeriod) ?? base.period,
-  };
 };
 
 export const PaywallScreen: React.FC = () => {
@@ -117,27 +106,48 @@ export const PaywallScreen: React.FC = () => {
     return () => clearTimeout(timer);
   }, [billingState.status, navigation]);
 
-  // ── Build product lookup map ──────────────────────────────────────────────
-  const subscriptionsBySku = useMemo(
-    () => products.reduce<Record<string, NativeSubscriptionProduct>>((acc, p) => {
-      acc[p.productId] = p;
-      return acc;
-    }, {}),
+  // ── Find the sagent_pro product and build offer lookup by basePlanId ─────
+  const sagentProProduct = useMemo(
+    () => products.find(p => p.productId === SUBSCRIPTION_PRODUCT_ID),
     [products],
+  );
+
+  const offersByBasePlan = useMemo(
+    () => {
+      if (!sagentProProduct) return {};
+      return sagentProProduct.offers.reduce<Record<string, NativeSubscriptionOffer>>((acc, offer) => {
+        if (offer.basePlanId) {
+          acc[offer.basePlanId] = offer;
+        }
+        return acc;
+      }, {});
+    },
+    [sagentProProduct],
   );
 
   // Merge fetched prices over the placeholders (if available).
   // Until products arrive the user always sees the hardcoded prices.
   const plans = useMemo<Record<PlanKey, PlanConfig>>(
     () => {
-      const monthly = mergePlanWithProduct(PLACEHOLDER_PLANS.monthly, subscriptionsBySku[SUBSCRIPTION_SKUS.monthly]);
-      const yearly = mergePlanWithProduct(PLACEHOLDER_PLANS.yearly, subscriptionsBySku[SUBSCRIPTION_SKUS.yearly]);
+      const monthlyOffer = offersByBasePlan[BASE_PLAN_IDS.monthly];
+      const yearlyOffer = offersByBasePlan[BASE_PLAN_IDS.yearly];
+
+      const monthly: PlanConfig = {
+        ...PLACEHOLDER_PLANS.monthly,
+        ...(monthlyOffer?.formattedPrice ? { price: monthlyOffer.formattedPrice } : {}),
+        ...(monthlyOffer?.billingPeriod ? { period: getPeriodLabel(monthlyOffer.billingPeriod) ?? PLACEHOLDER_PLANS.monthly.period } : {}),
+      };
+
+      const yearly: PlanConfig = {
+        ...PLACEHOLDER_PLANS.yearly,
+        ...(yearlyOffer?.formattedPrice ? { price: yearlyOffer.formattedPrice } : {}),
+        ...(yearlyOffer?.billingPeriod ? { period: getPeriodLabel(yearlyOffer.billingPeriod) ?? PLACEHOLDER_PLANS.yearly.period } : {}),
+      };
+
       // Recalculate the badge from actual prices if both are available
-      if (subscriptionsBySku[SUBSCRIPTION_SKUS.monthly] && subscriptionsBySku[SUBSCRIPTION_SKUS.yearly]) {
-        const monthlyPrice = monthly.price.replace(/[^0-9.]/g, '');
-        const yearlyPrice = yearly.price.replace(/[^0-9.]/g, '');
-        const monthlyNum = parseFloat(monthlyPrice);
-        const yearlyNum = parseFloat(yearlyPrice);
+      if (monthlyOffer?.formattedPrice && yearlyOffer?.formattedPrice) {
+        const monthlyNum = parseFloat(monthly.price.replace(/[^0-9.]/g, ''));
+        const yearlyNum = parseFloat(yearly.price.replace(/[^0-9.]/g, ''));
         if (monthlyNum > 0 && yearlyNum > 0) {
           const yearlyPerMonth = yearlyNum / 12;
           const savings = Math.round((1 - yearlyPerMonth / monthlyNum) * 100);
@@ -146,9 +156,10 @@ export const PaywallScreen: React.FC = () => {
           }
         }
       }
+
       return { monthly, yearly };
     },
-    [subscriptionsBySku],
+    [offersByBasePlan],
   );
 
   const active = plans[plan];
@@ -173,24 +184,18 @@ export const PaywallScreen: React.FC = () => {
       return;
     }
 
-    const subscription = subscriptionsBySku[SUBSCRIPTION_SKUS[plan]];
-    if (!subscription) {
+    const selectedOffer = offersByBasePlan[BASE_PLAN_IDS[plan]];
+    if (!sagentProProduct || !selectedOffer) {
       Toast.show({ type: 'error', text1: 'Product not available. Please try again in a moment.' });
       return;
     }
 
-    const offer = subscription.offers[0];
-    if (!offer) {
-      Toast.show({ type: 'error', text1: 'No offer available for this product.' });
-      return;
-    }
-
     try {
-      await launchPurchase(subscription.productId, offer.offerToken);
+      await launchPurchase(sagentProProduct.productId, selectedOffer.offerToken);
     } catch (error: any) {
       Toast.show({ type: 'error', text1: error?.message ?? 'Purchase failed. Please try again.' });
     }
-  }, [isAvailable, launchPurchase, plan, signInWithGoogleAndLink, subscriptionsBySku, user?.isAnonymous]);
+  }, [isAvailable, launchPurchase, offersByBasePlan, plan, sagentProProduct, signInWithGoogleAndLink, user?.isAnonymous]);
 
   // ── Restore ───────────────────────────────────────────────────────────────
   const handleRestore = useCallback(async () => {

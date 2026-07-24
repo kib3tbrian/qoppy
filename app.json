@@ -44,7 +44,7 @@
       "@react-native-google-signin/google-signin"
     ],
     "extra": {
-      "backendVerifyUrl": ""
+      "backendVerifyUrl": "https://sagent.up.railway.app/api/verify-purchase"
     }
   }
 }
