@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/verify-purchase", "destination": "/api/verify-purchase" },
+    { "source": "/api/rtdn-webhook", "destination": "/api/rtdn-webhook" }
+  ]
+}
