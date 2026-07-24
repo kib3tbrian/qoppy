@@ -3,7 +3,7 @@
     "name": "Sagent",
     "slug": "sagent",
     "version": "1.0.1",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#EDE9F6",
     "scheme": "sagent",
