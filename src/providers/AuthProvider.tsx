@@ -70,8 +70,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Link the credential to the current anonymous user
       if (auth().currentUser) {
-        await auth().currentUser!.linkWithCredential(googleCredential);
-        // The user is now linked! uid remains the same.
+        try {
+          await auth().currentUser!.linkWithCredential(googleCredential);
+          // The user is now linked! uid remains the same.
+        } catch (linkError: any) {
+          const code = linkError?.code ?? linkError?.userInfo?.code ?? '';
+          if (
+            code === 'auth/credential-already-in-use' ||
+            code === 'auth/provider-already-linked' ||
+            code === 'auth/email-already-in-use'
+          ) {
+            // The Google account is already associated with another Firebase
+            // user (e.g. after an app reinstall the anonymous UID changed).
+            // Fall back to a full sign-in which adopts the existing account.
+            console.warn(
+              `[Auth] linkWithCredential failed (${code}). Falling back to signInWithCredential.`,
+            );
+            await auth().signInWithCredential(googleCredential);
+          } else {
+            throw linkError;
+          }
+        }
       } else {
         // Fallback: just sign in if no current user
         await auth().signInWithCredential(googleCredential);
