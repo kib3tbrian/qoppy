@@ -1,21 +1,20 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Check, LoaderCircle, X } from 'lucide-react-native';
+import { Check, Crown, LoaderCircle, RefreshCw, X } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 import { textFont } from '../constants/typography';
 import { useTheme } from '../hooks/useTheme';
 import { BrandIcon } from '../components/common/BrandIcon';
 import { useAuth } from '../providers/AuthProvider';
 import { useEntitlement } from '../hooks/useEntitlement';
-import { NativeSubscriptionProduct } from '../services/nativeBilling';
+import { NativeSubscriptionOffer } from '../services/nativeBilling';
 import { useSubscription } from '../hooks/useSubscription';
 
 const BENEFITS = [
@@ -42,7 +41,6 @@ type PlanKey = keyof typeof BASE_PLAN_IDS;
 
 interface PlanConfig {
   label: string;
-  /** Displayed price — placeholder until real price is fetched */
   price: string;
   period: string;
   badge?: string;
@@ -51,7 +49,7 @@ interface PlanConfig {
 // Hardcoded placeholder prices shown immediately (before any network fetch).
 const PLACEHOLDER_PLANS: Record<PlanKey, PlanConfig> = {
   monthly: { label: 'Monthly', price: '$9.99', period: '/month' },
-  yearly: { label: 'Yearly', price: '$89.99', period: '/year', badge: 'Save 25%' }, // badge recalculated from prices when products are loaded
+  yearly: { label: 'Yearly', price: '$89.99', period: '/year', badge: 'Save 25%' },
 };
 
 const getPeriodLabel = (billingPeriod?: string | null): string | null => {
@@ -62,13 +60,36 @@ const getPeriodLabel = (billingPeriod?: string | null): string | null => {
   }
 };
 
+/** Format an ISO date string into a human-readable date */
+const formatExpiryDate = (expiresAt: Date | null): string | null => {
+  if (!expiresAt) return null;
+  try {
+    return expiresAt.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  } catch {
+    return null;
+  }
+};
+
 export const PaywallScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { theme } = useTheme();
   const [plan, setPlan] = useState<PlanKey>('yearly');
+  const [showPlanChangeOptions, setShowPlanChangeOptions] = useState(false);
   const { user, signInWithGoogleAndLink } = useAuth();
-  const { isPro, loading: isCheckingPremium } = useEntitlement();
+  const {
+    isPro,
+    basePlanId,
+    expiresAt,
+    daysRemaining,
+    plan: planName,
+    loading: isCheckingPremium,
+  } = useEntitlement();
   const [isLinkingAuth, setIsLinkingAuth] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const {
     isAvailable,
@@ -79,37 +100,10 @@ export const PaywallScreen: React.FC = () => {
     restorePurchases,
   } = useSubscription(SUBSCRIPTION_SKUS_LIST);
 
-  // ── Redirect already-subscribed users away from the paywall ──────────────
-  // Guard against calling goBack() before the screen is fully mounted/focused,
-  // which corrupts the navigation stack on React Navigation 6.
-  useEffect(() => {
-    if (isCheckingPremium) return;
-    if (!isPro) return;
-    // Defer by one frame so the screen has finished mounting before we navigate
-    const timer = setTimeout(() => {
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [isPro, isCheckingPremium, navigation]);
-
-  // ── Handle successful purchase ────────────────────────────────────────────
-  useEffect(() => {
-    if (billingState.status !== 'subscribed') return;
-    const timer = setTimeout(() => {
-      Alert.alert('Premium enabled', 'Your plan is now active on this device.');
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [billingState.status, navigation]);
-
   // ── Find the sagent_pro product and build offer lookup by basePlanId ─────
   const sagentProProduct = useMemo(
     () => products.find(p => p.productId === SUBSCRIPTION_PRODUCT_ID),
-    [products],
+    [products]
   );
 
   const offersByBasePlan = useMemo(
@@ -122,11 +116,10 @@ export const PaywallScreen: React.FC = () => {
         return acc;
       }, {});
     },
-    [sagentProProduct],
+    [sagentProProduct]
   );
 
   // Merge fetched prices over the placeholders (if available).
-  // Until products arrive the user always sees the hardcoded prices.
   const plans = useMemo<Record<PlanKey, PlanConfig>>(
     () => {
       const monthlyOffer = offersByBasePlan[BASE_PLAN_IDS.monthly];
@@ -144,7 +137,6 @@ export const PaywallScreen: React.FC = () => {
         ...(yearlyOffer?.billingPeriod ? { period: getPeriodLabel(yearlyOffer.billingPeriod) ?? PLACEHOLDER_PLANS.yearly.period } : {}),
       };
 
-      // Recalculate the badge from actual prices if both are available
       if (monthlyOffer?.formattedPrice && yearlyOffer?.formattedPrice) {
         const monthlyNum = parseFloat(monthly.price.replace(/[^0-9.]/g, ''));
         const yearlyNum = parseFloat(yearly.price.replace(/[^0-9.]/g, ''));
@@ -159,14 +151,13 @@ export const PaywallScreen: React.FC = () => {
 
       return { monthly, yearly };
     },
-    [offersByBasePlan],
+    [offersByBasePlan]
   );
 
   const active = plans[plan];
 
   // ── Purchase ──────────────────────────────────────────────────────────────
   const handlePurchase = useCallback(async () => {
-    // Auth gate: anonymous users must link a Google account first
     if (user?.isAnonymous) {
       setIsLinkingAuth(true);
       try {
@@ -197,29 +188,242 @@ export const PaywallScreen: React.FC = () => {
     }
   }, [isAvailable, launchPurchase, offersByBasePlan, plan, sagentProProduct, signInWithGoogleAndLink, user?.isAnonymous]);
 
-  // ── Restore ───────────────────────────────────────────────────────────────
+  // ── Restore / Refresh ──────────────────────────────────────────────────────
   const handleRestore = useCallback(async () => {
     if (!isAvailable) {
       Toast.show({ type: 'error', text1: 'Billing is not available on this device.' });
       return;
     }
+    setIsRefreshing(true);
     try {
       const freshState = await restorePurchases();
       if (freshState.status === 'subscribed') {
-        Alert.alert('Restore successful', 'Your premium subscription has been restored.');
-        if (navigation.canGoBack()) navigation.goBack();
+        Toast.show({ type: 'success', text1: 'Subscription verified and active!' });
       } else {
         Toast.show({ type: 'info', text1: 'No active subscription was found.' });
       }
     } catch (error: any) {
       Toast.show({ type: 'error', text1: error?.message ?? 'Restore failed. Please try again.' });
+    } finally {
+      setIsRefreshing(false);
     }
-  }, [isAvailable, navigation, restorePurchases]);
+  }, [isAvailable, restorePurchases]);
 
+  // ── Change Plan ────────────────────────────────────────────────────────────
+  const handleChangePlan = useCallback(async () => {
+    if (!isAvailable) {
+      Toast.show({ type: 'error', text1: 'Billing is not available on this device.' });
+      return;
+    }
+
+    const targetBasePlanId = BASE_PLAN_IDS[plan];
+    if (targetBasePlanId === basePlanId) {
+      Toast.show({ type: 'info', text1: 'You are already on this plan.' });
+      return;
+    }
+
+    const selectedOffer = offersByBasePlan[targetBasePlanId];
+    if (!sagentProProduct || !selectedOffer) {
+      Toast.show({ type: 'error', text1: 'Product not available. Please try again in a moment.' });
+      return;
+    }
+
+    try {
+      await launchPurchase(sagentProProduct.productId, selectedOffer.offerToken);
+    } catch (error: any) {
+      Toast.show({ type: 'error', text1: error?.message ?? 'Plan change failed. Please try again.' });
+    }
+  }, [basePlanId, isAvailable, launchPurchase, offersByBasePlan, plan, sagentProProduct]);
+
+  // 1. Loading State
   if (isCheckingPremium) {
-    return <View style={[styles.container, { backgroundColor: theme.background }]} />;
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+        <LoaderCircle size={36} color={theme.primary} />
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Checking subscription status...</Text>
+      </View>
+    );
   }
 
+  // 2. Purchased pending verification / webhook lag
+  const isPurchasedPendingVerification = billingState.status === 'subscribed' && !isPro;
+  if (isPurchasedPendingVerification) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+        <LoaderCircle size={40} color={theme.primary} />
+        <Text style={[styles.heroTitle, { color: theme.text, marginTop: 16 }]}>Finalizing your purchase...</Text>
+        <Text style={[styles.heroSubtitle, { color: theme.textSecondary, marginHorizontal: 24, marginTop: 8 }]}>
+          We are confirming your purchase with Google Play. This usually takes just a few seconds.
+        </Text>
+        <TouchableOpacity
+          onPress={() => void handleRestore()}
+          style={[styles.retryButton, { backgroundColor: theme.primary, marginTop: 24 }]}
+          activeOpacity={0.85}
+          disabled={isRefreshing}
+        >
+          {isRefreshing ? (
+            <LoaderCircle size={18} color={theme.onPrimary} />
+          ) : (
+            <RefreshCw size={18} color={theme.onPrimary} />
+          )}
+          <Text style={[styles.retryButtonText, { color: theme.onPrimary }]}>
+            {isRefreshing ? 'Checking...' : 'Refresh Status'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // 3. PRO STATUS SCREEN (when user is Pro)
+  if (isPro) {
+    const formattedExpiry = formatExpiryDate(expiresAt);
+    const daysLeftText = daysRemaining !== null && daysRemaining > 0
+      ? `${daysRemaining} days of Pro left`
+      : 'Pro Active';
+
+    return (
+      <ScrollView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        contentContainerStyle={styles.content}
+      >
+        {/* ── Dismiss button ── */}
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={[styles.dismiss, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          activeOpacity={0.75}
+        >
+          <X size={24} color={theme.text} strokeWidth={3} />
+        </TouchableOpacity>
+
+        {/* ── App Logo Branding & Heading ── */}
+        <View style={styles.hero}>
+          <BrandIcon size={88} />
+          <Text style={[styles.heroTitle, { color: theme.text }]}>Enjoy the 3 perks of Pro</Text>
+          <View style={[styles.daysChip, { backgroundColor: `${theme.primary}18` }]}>
+            <Crown size={16} color={theme.primary} />
+            <Text style={[styles.daysChipText, { color: theme.primary }]}>{daysLeftText}</Text>
+          </View>
+        </View>
+
+        {/* ── 3 Perk Rows ── */}
+        <View style={[styles.benefitsList, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          {BENEFITS.map(text => (
+            <View key={text} style={styles.benefitRow}>
+              <View style={[styles.checkCircle, { backgroundColor: `${theme.success}20` }]}>
+                <Check size={14} color={theme.success} strokeWidth={2.5} />
+              </View>
+              <Text style={[styles.benefitText, { color: theme.text }]}>{text}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* ── Active Plan Info & Change Plan ── */}
+        <View style={[styles.premiumCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.premiumCardRow}>
+            <Text style={[styles.premiumCardLabel, { color: theme.textSecondary }]}>Active Plan</Text>
+            <View style={[styles.activePlanChip, { backgroundColor: `${theme.success}18` }]}>
+              <Text style={[styles.activePlanChipText, { color: theme.success }]}>Active</Text>
+            </View>
+          </View>
+          <Text style={[styles.premiumCardValue, { color: theme.text }]}>
+            Sagent Pro — {planName ?? 'Pro'}
+          </Text>
+
+          {formattedExpiry && (
+            <View style={styles.premiumCardRow}>
+              <Text style={[styles.premiumCardLabel, { color: theme.textSecondary }]}>Renews / Expires</Text>
+              <Text style={[styles.premiumCardDate, { color: theme.text }]}>{formattedExpiry}</Text>
+            </View>
+          )}
+
+          {!showPlanChangeOptions ? (
+            <TouchableOpacity
+              style={[styles.changePlanBtn, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
+              onPress={() => setShowPlanChangeOptions(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.changePlanBtnText, { color: theme.primary }]}>Change Plan</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.changePlanBox}>
+              <Text style={[styles.switchTitle, { color: theme.text, marginTop: 8 }]}>Select New Plan</Text>
+
+              <View style={styles.toggle}>
+                {(['monthly', 'yearly'] as const).map(key => {
+                  const p = plans[key];
+                  const isActive = plan === key;
+                  const isCurrent = BASE_PLAN_IDS[key] === basePlanId;
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={[
+                        styles.planCard,
+                        { backgroundColor: theme.surface, borderColor: theme.border },
+                        isActive && { borderColor: theme.primary, backgroundColor: theme.surfaceAlt },
+                      ]}
+                      onPress={() => setPlan(key)}
+                      activeOpacity={0.82}
+                    >
+                      {isCurrent && (
+                        <View style={[styles.currentBadge, { backgroundColor: `${theme.success}18` }]}>
+                          <Text style={[styles.currentBadgeText, { color: theme.success }]}>Current</Text>
+                        </View>
+                      )}
+                      {key === 'yearly' && p.badge && !isCurrent && (
+                        <View style={[styles.inlineBadge, { backgroundColor: theme.primary }]}>
+                          <Text style={[styles.badgeText, { color: theme.onPrimary }]}>{p.badge}</Text>
+                        </View>
+                      )}
+                      <Text style={[styles.planLabel, { color: isActive ? theme.primary : theme.textSecondary }]}>
+                        {p.label}
+                      </Text>
+                      <Text style={[styles.planPrice, { color: theme.text }]}>{p.price}</Text>
+                      <Text style={[styles.planPeriod, { color: isActive ? theme.primary : theme.textSecondary }]}>
+                        {p.period}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.cta,
+                  {
+                    backgroundColor: BASE_PLAN_IDS[plan] === basePlanId ? theme.surfaceAlt : theme.primary,
+                    shadowColor: theme.primary,
+                  },
+                  isPurchasing && styles.ctaDisabled,
+                ]}
+                onPress={() => void handleChangePlan()}
+                disabled={isPurchasing || BASE_PLAN_IDS[plan] === basePlanId}
+                activeOpacity={0.85}
+              >
+                {isPurchasing ? (
+                  <View style={styles.loadingRow}>
+                    <LoaderCircle size={18} color={theme.onPrimary} />
+                    <Text style={[styles.ctaText, { color: theme.onPrimary }]}>Processing...</Text>
+                  </View>
+                ) : BASE_PLAN_IDS[plan] === basePlanId ? (
+                  <Text style={[styles.ctaText, { color: theme.textSecondary }]}>Current Plan</Text>
+                ) : (
+                  <Text style={[styles.ctaText, { color: theme.onPrimary }]}>
+                    Confirm Switch to {plans[plan].label}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        <Text style={[styles.finePrint, { color: theme.textSecondary }]}>
+          Manage your subscription in Google Play Store settings.
+        </Text>
+      </ScrollView>
+    );
+  }
+
+  // 4. NON-PRO PURCHASE PAYWALL VIEW
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.background }]}
@@ -346,6 +550,17 @@ export const PaywallScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 24, paddingTop: 64, paddingBottom: 60 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  loadingText: { ...textFont('medium'), fontSize: 16, marginTop: 16 },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  retryButtonText: { ...textFont('bold'), fontSize: 15 },
   dismiss: {
     position: 'absolute',
     top: 16,
@@ -358,14 +573,54 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 10,
   },
-  hero: { alignItems: 'center', marginBottom: 28, gap: 12 },
-  heroTitle: { ...textFont('bold'), fontSize: 30 },
-  heroSubtitle: { ...textFont('regular'), fontSize: 17, textAlign: 'center', lineHeight: 27 },
-  benefitsList: { borderRadius: 20, borderWidth: 1, padding: 20, gap: 16, marginBottom: 28 },
+  hero: { alignItems: 'center', marginBottom: 24, gap: 12 },
+  heroTitle: { ...textFont('bold'), fontSize: 28, textAlign: 'center' },
+  heroSubtitle: { ...textFont('regular'), fontSize: 16, textAlign: 'center', lineHeight: 24 },
+  daysChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  daysChipText: { ...textFont('bold'), fontSize: 14 },
+  benefitsList: { borderRadius: 20, borderWidth: 1, padding: 20, gap: 16, marginBottom: 20 },
   benefitRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   checkCircle: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  benefitText: { ...textFont('regular'), fontSize: 16, flex: 1, lineHeight: 23 },
-  toggle: { flexDirection: 'row', gap: 12, marginBottom: 28 },
+  benefitText: { ...textFont('regular'), fontSize: 15, flex: 1, lineHeight: 22 },
+  premiumCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20,
+    gap: 12,
+    marginBottom: 20,
+  },
+  premiumCardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  premiumCardLabel: { ...textFont('regular'), fontSize: 14 },
+  premiumCardValue: { ...textFont('bold'), fontSize: 19 },
+  premiumCardDate: { ...textFont('semibold'), fontSize: 14 },
+  activePlanChip: {
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  activePlanChipText: { ...textFont('semibold'), fontSize: 12 },
+  changePlanBtn: {
+    marginTop: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  changePlanBtnText: { ...textFont('bold'), fontSize: 15 },
+  changePlanBox: { marginTop: 8, gap: 12 },
+  switchTitle: { ...textFont('semibold'), fontSize: 16 },
+  toggle: { flexDirection: 'row', gap: 12, marginBottom: 8 },
   planCard: {
     flex: 1,
     borderRadius: 18,
@@ -384,22 +639,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  currentBadge: {
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginBottom: 2,
+  },
+  currentBadgeText: { ...textFont('semibold'), fontSize: 11 },
   badgeText: { ...textFont('semibold'), fontSize: 11 },
   planLabel: { ...textFont('semibold'), fontSize: 13, marginBottom: 4 },
   planPrice: { ...textFont('bold'), fontSize: 20 },
   planPeriod: { ...textFont('regular'), fontSize: 11 },
   cta: {
     borderRadius: 18,
-    padding: 18,
+    padding: 16,
     alignItems: 'center',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 6,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   ctaDisabled: { opacity: 0.6 },
-  ctaText: { ...textFont('bold'), fontSize: 17 },
+  ctaText: { ...textFont('bold'), fontSize: 16 },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   restoreButton: {
     borderWidth: 1,

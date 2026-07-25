@@ -14,7 +14,6 @@ export const CATEGORY_COLORS = [
 ];
 
 export const DEFAULT_CATEGORIES = [
-  { id: 'welcome', name: 'Welcome', color: '#6366F1', icon: 'star', createdAt: 0 },
   { id: 'sales', name: 'Sales', color: '#8B5CF6', icon: 'tag', createdAt: 0 },
   { id: 'support', name: 'Support', color: '#3B82F6', icon: 'tag', createdAt: 0 },
   { id: 'finance', name: 'Finance', color: '#10B981', icon: 'credit-card', createdAt: 0 },
@@ -31,9 +30,9 @@ export const MESSAGE_TEMPLATES = [
     categoryId: 'sales',
   },
   {
-    id: 'example-welcome',
-    title: 'Welcome Message',
-    content: 'Welcome! We are thrilled to have you here. Let us know if you need any help getting started.',
+    id: 'example-support-reply',
+    title: 'Support Reply',
+    content: "Thanks for reaching out! I've received your request and am looking into it now. I will update you shortly.",
     categoryId: 'support',
   },
   {
@@ -47,6 +46,18 @@ export const MESSAGE_TEMPLATES = [
     title: 'Sagent App',
     content: 'Try Sagent for saving and sending the messages you reuse every day: https://play.google.com/store/apps/details?id=com.sagent.app',
     categoryId: 'marketing',
+  },
+  {
+    id: 'example-meeting-summary',
+    title: 'Meeting Summary',
+    content: 'Great speaking with you today! As discussed, here is the summary of our next steps. Let me know if anything needs adjustment.',
+    categoryId: 'operations',
+  },
+  {
+    id: 'example-contact-info',
+    title: 'Contact Info',
+    content: 'Here are my contact details: Phone: +1 555-0199 | Email: hello@example.com | Website: https://example.com',
+    categoryId: 'other',
   },
 ];
 

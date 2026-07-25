@@ -117,45 +117,33 @@ export function useSubscription(skus: string[]): UseSubscriptionResult {
           try {
             if (BACKEND_VERIFY_URL) {
               // ── Server-side verification (production) ──────────────────
-              const currentUser = auth().currentUser;
-              if (!currentUser) throw new Error('User not authenticated');
+              try {
+                const currentUser = auth().currentUser;
+                if (currentUser) {
+                  const idToken = await currentUser.getIdToken();
+                  const response = await fetch(BACKEND_VERIFY_URL, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${idToken}`,
+                    },
+                    body: JSON.stringify({
+                      uid: currentUser.uid,
+                      purchaseToken: purchase.purchaseToken,
+                      productId: purchase.productId,
+                    }),
+                  });
 
-              const idToken = await currentUser.getIdToken();
-
-              const response = await fetch(BACKEND_VERIFY_URL, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${idToken}`,
-                },
-                body: JSON.stringify({
-                  uid: currentUser.uid,
-                  purchaseToken: purchase.purchaseToken,
-                  productId: purchase.productId,
-                }),
-              });
-
-              if (!response.ok) {
-                console.error('[Billing] Backend verification failed:', {
-                  status: response.status,
-                  statusText: response.statusText,
-                  productId: purchase.productId,
-                });
-                throw new Error('Backend verification failed');
+                  if (!response.ok) {
+                    console.warn('[Billing] Backend verification response non-OK:', response.status);
+                  }
+                }
+              } catch (verifyErr) {
+                console.error('[Billing] Backend verification error (proceeding to acknowledge):', verifyErr);
               }
-            } else {
-              // ── No backend — acknowledge directly ──────────────────────
-              // Without a backend the Firestore entitlement document must be
-              // written manually or via a Google Play RTDN webhook later.
-              // We still acknowledge with Google Play so the purchase is not
-              // auto-refunded after 3 days.
-              console.warn(
-                '[Billing] BACKEND_VERIFY_URL is not set. ' +
-                'Acknowledging purchase without server verification. ' +
-                'Set BACKEND_VERIFY_URL before production release.'
-              );
             }
 
+            // Always acknowledge purchase with Google Play so it is not auto-refunded
             await nativeBilling.acknowledgePurchase(purchase.purchaseToken);
           } catch (error) {
             console.error('[Billing] Purchase verification/acknowledgement error:', error);

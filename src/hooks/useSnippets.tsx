@@ -13,6 +13,7 @@ import { Share } from 'react-native';
 import { db } from '../services/database';
 import { Snippet, SnippetInsert, SnippetUpdate } from '../types';
 import { useRatingPrompt } from './useRatingPrompt';
+import { useEntitlement } from './useEntitlement';
 
 const FREE_SHARE_LIMIT = 50;
 const SHARE_COUNT_KEY = 'monthly_share_count';
@@ -54,6 +55,7 @@ interface UseSnippetsReturn {
 const SnippetsContext = createContext<UseSnippetsReturn | null>(null);
 
 export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isPro } = useEntitlement();
   const [allSnippets, setAllSnippets] = useState<Snippet[]>([]);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,7 +65,7 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [searchQuery, setSearchQuery] = useState('');
   const [premiumPromptVisible, setPremiumPromptVisible] = useState(false);
   const [premiumPromptReason, setPremiumPromptReason] = useState<PremiumPromptReason>('share-limit');
-  const [isPremium, setIsPremium] = useState(false);
+  const isPremium = isPro;
   const [monthlyShareCount, setMonthlyShareCount] = useState(0);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { incrementUsage } = useRatingPrompt();
@@ -101,8 +103,8 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const isPremiumEnabled = useCallback(async () => {
-    return (await db.getPreference('premium_enabled', 'false')) === 'true';
-  }, []);
+    return isPro || (await db.getPreference('premium_enabled', 'false')) === 'true';
+  }, [isPro]);
 
   const getMonthlyShareCount = useCallback(async (): Promise<MonthlyShareCount> => {
     const now = new Date();

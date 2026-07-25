@@ -31,6 +31,7 @@ import { textFont } from '../constants/typography';
 import { RootStackParamList } from '../types';
 import { useTheme } from '../hooks/useTheme';
 import { useSnippets } from '../hooks/useSnippets';
+import { useEntitlement } from '../hooks/useEntitlement';
 
 // Read version from app.json at build time — single source of truth.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -86,6 +87,7 @@ export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NavProp>();
   const { theme } = useTheme();
   const { isPremium } = useSnippets();
+  const { isPro } = useEntitlement();
   const [hapticEnabled, setHapticEnabled] = useState(true);
   const [showHowTo, setShowHowTo] = useState(false);
 
@@ -120,21 +122,31 @@ export const SettingsScreen: React.FC = () => {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        {!isPremium && (
-          <TouchableOpacity
-            style={[styles.premiumHero, { backgroundColor: theme.primary, shadowColor: theme.primary }]}
-            onPress={() => navigation.navigate('Paywall', { source: 'settings' })}
-            activeOpacity={0.88}
-          >
-            <View style={styles.premiumHeader}>
-              <Crown size={26} color={theme.onPrimary} />
-              <Text style={[styles.premiumTitle, { color: theme.onPrimary }]}>Upgrade to Pro</Text>
-            </View>
-            <Text style={[styles.premiumSub, { color: `${theme.onPrimary}DD` }]}>
-              Get the full power of Sagent for your business or life. Save 4+ hours every month.
+        <TouchableOpacity
+          style={[
+            styles.premiumHero,
+            {
+              backgroundColor: isPro ? theme.surface : theme.primary,
+              borderColor: isPro ? theme.border : 'transparent',
+              borderWidth: isPro ? 1 : 0,
+              shadowColor: isPro ? 'transparent' : theme.primary,
+            },
+          ]}
+          onPress={() => navigation.navigate('Paywall', { source: 'settings' })}
+          activeOpacity={0.88}
+        >
+          <View style={styles.premiumHeader}>
+            <Crown size={26} color={isPro ? theme.primary : theme.onPrimary} />
+            <Text style={[styles.premiumTitle, { color: isPro ? theme.text : theme.onPrimary }]}>
+              {isPro ? 'You are now in Premium' : 'Upgrade to Pro'}
             </Text>
-          </TouchableOpacity>
-        )}
+          </View>
+          <Text style={[styles.premiumSub, { color: isPro ? theme.textSecondary : `${theme.onPrimary}DD` }]}>
+            {isPro
+              ? 'You have full access to Sagent Pro features. Tap to view your plan details or switch options.'
+              : 'Get the full power of Sagent for your business or life. Save 4+ hours every month.'}
+          </Text>
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.shareCard, { backgroundColor: theme.surface, borderColor: theme.border }]}

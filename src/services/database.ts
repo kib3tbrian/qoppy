@@ -6,7 +6,7 @@
 
 import * as SQLite from 'expo-sqlite';
 import { Snippet, SnippetInsert, SnippetUpdate, Category } from '../types';
-import { DEFAULT_CATEGORIES } from '../constants';
+import { DEFAULT_CATEGORIES, MESSAGE_TEMPLATES } from '../constants';
 
 const DB_NAME = 'clipmanager.db';
 class DatabaseService {
@@ -65,6 +65,13 @@ class DatabaseService {
       );
     `);
 
+    // Cleanup legacy 'welcome' category and example welcome snippets
+    await db.execAsync(`
+      DELETE FROM categories WHERE id = 'welcome';
+      DELETE FROM snippets WHERE title = 'Welcome' AND content LIKE 'Welcome to the app%';
+      DELETE FROM snippets WHERE title = 'Welcome Message' AND content LIKE 'Welcome! We are thrilled%';
+    `);
+
     await this.seedDefaultCategories();
     await this.seedExampleMessages();
   }
@@ -81,49 +88,22 @@ class DatabaseService {
 
   private async seedExampleMessages(): Promise<void> {
     const db = this.getDb();
-    const [row, seededPreference, hasOnboarded] = await Promise.all([
+    const [row, seededPreference] = await Promise.all([
       db.getFirstAsync<{ count: number }>(`SELECT COUNT(*) as count FROM snippets`),
       this.getPreference('example_snippets_seeded', 'false'),
-      this.getPreference('onboarded', 'false'),
     ]);
 
-    if ((row?.count ?? 0) > 0 || seededPreference === 'true' || hasOnboarded === 'true') {
+    if ((row?.count ?? 0) > 0 || seededPreference === 'true') {
       return;
     }
 
     const now = Date.now();
-    const examples: Array<SnippetInsert & { id: string; categoryId: string }> = [
-      {
-        id: `${now.toString(36)}-example-welcome`,
-        title: 'Welcome',
-        content: 'Welcome to the app. Click on a block to send it.',
-        categoryId: 'welcome',
-      },
-      {
-        id: `${(now + 1).toString(36)}-example-price-list`,
-        title: 'Price List',
-        content: "Hi! Here's our current price list. Let me know which option works best for you and I'll get you sorted right away.",
-        categoryId: 'sales',
-      },
-      {
-        id: `${(now + 2).toString(36)}-example-support`,
-        title: 'Welcome Message',
-        content: 'Welcome! We are thrilled to have you here. Let us know if you need any help getting started.',
-        categoryId: 'support',
-      },
-      {
-        id: `${(now + 3).toString(36)}-example-payment-link`,
-        title: 'Payment Link',
-        content: 'Please use the link below to complete your payment. Reach out if you run into any issues — happy to help!',
-        categoryId: 'finance',
-      },
-      {
-        id: `${(now + 4).toString(36)}-example-sagent`,
-        title: 'Sagent App',
-        content: 'Try Sagent for saving and sending the messages you reuse every day: https://play.google.com/store/apps/details?id=com.sagent.app',
-        categoryId: 'marketing',
-      },
-    ];
+    const examples = MESSAGE_TEMPLATES.map((tmpl, idx) => ({
+      id: `${(now + idx).toString(36)}-${tmpl.id}`,
+      title: tmpl.title,
+      content: tmpl.content,
+      categoryId: tmpl.categoryId,
+    }));
 
     for (const [index, snippet] of examples.entries()) {
       const createdAt = now + index;
