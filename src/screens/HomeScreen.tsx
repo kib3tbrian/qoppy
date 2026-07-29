@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Plus, Sparkles } from 'lucide-react-native';
+import { Crown, Plus, Sparkles, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -21,8 +21,9 @@ import { CategoryChipBar } from '../components/common/CategoryChipBar';
 import { SearchBar } from '../components/common/SearchBar';
 import { useSnippets } from '../hooks/useSnippets';
 import { useCategories } from '../hooks/useCategories';
+import { useEntitlement } from '../hooks/useEntitlement';
 import { useRatingPrompt } from '../hooks/useRatingPrompt';
-import { MESSAGE_TEMPLATES, DEFAULT_CATEGORIES } from '../constants';
+import { DEFAULT_CATEGORIES } from '../constants';
 import { textFont } from '../constants/typography';
 import { RootStackParamList, Snippet } from '../types';
 import { useTheme } from '../hooks/useTheme';
@@ -85,11 +86,20 @@ export const HomeScreen: React.FC = () => {
     }
   }, [activeCategory, existingCategoryIds, filterByCategory]);
 
+  const { isPro } = useEntitlement();
+  const [nudgeDismissed, setNudgeDismissed] = React.useState(false);
+  const showProBadge = isPro || isPremium;
+
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerTitle: 'Sagent',
+      headerTitle: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={[{ ...textFont('bold'), fontSize: 20, color: theme.text }]}>Sagent</Text>
+          {showProBadge && <Crown size={18} color="#8B5CF6" fill="#8B5CF6" />}
+        </View>
+      ),
     });
-  }, [navigation]);
+  }, [navigation, showProBadge, theme.text]);
 
   React.useEffect(() => {
     triggerPrompt();
@@ -112,21 +122,7 @@ export const HomeScreen: React.FC = () => {
     await deleteSnippet(id);
   }, [deleteSnippet]);
 
-  const handleCreateTemplate = useCallback(async (template: typeof MESSAGE_TEMPLATES[number]) => {
-    const categoryId = existingCategoryIds.has(template.categoryId)
-      ? template.categoryId
-      : activeCategory && existingCategoryIds.has(activeCategory)
-        ? activeCategory
-        : existingCategoryIds.has('welcome')
-          ? 'welcome'
-          : null;
 
-    await createSnippet({
-      title: template.title,
-      content: template.content,
-      categoryId,
-    });
-  }, [activeCategory, createSnippet, existingCategoryIds]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: GridListItem<Snippet>; index: number }) =>
@@ -152,10 +148,6 @@ export const HomeScreen: React.FC = () => {
   const EmptyState = () => {
     const hasSearch = Boolean(searchQuery.trim());
     const categoryName = activeCategoryDetails?.name;
-    const templates = MESSAGE_TEMPLATES
-      .filter(template => !activeCategory || template.categoryId === activeCategory)
-      .slice(0, activeCategory ? 3 : 4);
-    const fallbackTemplates = templates.length > 0 ? templates : MESSAGE_TEMPLATES.slice(0, 3);
     const title = hasSearch
       ? 'No results found'
       : categoryName
@@ -173,7 +165,7 @@ export const HomeScreen: React.FC = () => {
         <Text style={[styles.emptyTitle, { color: theme.text }]}>{title}</Text>
         <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>{subtitle}</Text>
 
-        {hasSearch ? (
+        {hasSearch && (
           <TouchableOpacity
             style={[styles.emptyButton, { backgroundColor: theme.primary }]}
             onPress={() => setSearchQuery('')}
@@ -181,40 +173,51 @@ export const HomeScreen: React.FC = () => {
           >
             <Text style={[styles.emptyButtonText, { color: theme.onPrimary }]}>Clear search</Text>
           </TouchableOpacity>
-        ) : (
-          <View style={styles.templateList}>
-            {fallbackTemplates.map(template => (
-              <TouchableOpacity
-                key={template.id}
-                style={[styles.templateButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                onPress={() => void handleCreateTemplate(template)}
-                activeOpacity={0.85}
-              >
-                <Sparkles size={15} color={theme.primary} />
-                <Text style={[styles.templateText, { color: theme.text }]} numberOfLines={1}>
-                  {template.title}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         )}
       </View>
     );
   };
 
   const FreeSendIndicator = () => {
-    if (isPremium) {
+    if (isPremium || isPro) {
       return null;
     }
 
-    const usageColor = monthlyShareCount >= FREE_SEND_WARNING_THRESHOLD ? theme.danger : theme.textMuted;
+    if (monthlyShareCount >= FREE_SEND_WARNING_THRESHOLD) {
+      if (nudgeDismissed) return null;
+
+      return (
+        <TouchableOpacity
+          style={[
+            styles.nudgeBanner,
+            { backgroundColor: `${theme.primary}15`, borderColor: `${theme.primary}40` },
+          ]}
+          onPress={() => navigation.navigate('Paywall', { source: 'nudge-banner' })}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.nudgeText, { color: theme.text }]}>
+            <Text style={{ ...textFont('bold'), color: theme.danger }}>{monthlyShareCount}/50 free sends used</Text> · Upgrade for unlimited →
+          </Text>
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              setNudgeDismissed(true);
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ padding: 2 }}
+          >
+            <X size={14} color={theme.textMuted} />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      );
+    }
 
     return (
       <View style={styles.sendUsageRow}>
-        <Text style={[styles.sendUsageText, { color: usageColor }]}>
+        <Text style={[styles.sendUsageText, { color: theme.textMuted }]}>
           {monthlyShareCount} of {freeShareLimit} free sends used
         </Text>
-        <Text style={[styles.sendUsageText, { color: usageColor }]}> · </Text>
+        <Text style={[styles.sendUsageText, { color: theme.textMuted }]}> · </Text>
         <TouchableOpacity
           onPress={() => navigation.navigate('Paywall', { source: 'home-usage' })}
           activeOpacity={0.75}
@@ -499,6 +502,20 @@ const styles = StyleSheet.create({
   modalSecondaryText: {
     ...textFont('semibold'),
     fontSize: 15,
+  },
+  nudgeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  nudgeText: {
+    ...textFont('medium'),
+    fontSize: 13,
   },
 });
 

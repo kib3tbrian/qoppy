@@ -38,7 +38,7 @@ export type RootStackParamList = {
   Main: undefined;
   AddSnippet: { snippetId?: string };
   ManageCategories: undefined;
-  Paywall: { source?: 'settings' | 'limit-modal' | 'home-usage' } | undefined;
+  Paywall: { source?: 'settings' | 'limit-modal' | 'home-usage' | 'nudge-banner' } | undefined;
 };
 
 export type MainTabParamList = {

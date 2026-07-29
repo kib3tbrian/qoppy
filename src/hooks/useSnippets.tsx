@@ -10,6 +10,9 @@ import React, {
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { Share } from 'react-native';
+import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
+import nativeBilling from '../services/nativeBilling';
 import { db } from '../services/database';
 import { Snippet, SnippetInsert, SnippetUpdate } from '../types';
 import { useRatingPrompt } from './useRatingPrompt';
@@ -27,6 +30,7 @@ interface MonthlyShareCount {
 }
 
 interface UseSnippetsReturn {
+  allSnippets: Snippet[];
   snippets: Snippet[];
   isLoading: boolean;
   error: string | null;
@@ -105,39 +109,93 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return isPro || (await db.getPreference('premium_enabled', 'false')) === 'true';
   }, [isPro]);
 
+  const getDeviceFingerprint = useCallback(async (): Promise<string> => {
+    let fp = await db.getPreference('device_fingerprint');
+    if (!fp) {
+      fp = `dev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+      await db.setPreference('device_fingerprint', fp).catch(() => {});
+    }
+    return fp;
+  }, []);
+
   const getMonthlyShareCount = useCallback(async (): Promise<MonthlyShareCount> => {
     const now = new Date();
-    const current = {
-      count: 0,
-      month: now.getMonth() + 1,
-      year: now.getFullYear(),
-    };
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const currentResetDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
 
-    // AsyncStorage is not installed in this app and the task forbids new libraries,
-    // so Sagent stores the same monthly counter shape in the existing preference store.
+    let localCount = 0;
     const raw = await db.getPreference(SHARE_COUNT_KEY);
-    if (!raw) {
-      return current;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as MonthlyShareCount;
+        if (parsed.month === currentMonth && parsed.year === currentYear) {
+          localCount = Number(parsed.count) || 0;
+        }
+      } catch { /* ignore */ }
     }
 
+    // Device Fingerprint Anti-Abuse Tracking
     try {
-      const parsed = JSON.parse(raw) as MonthlyShareCount;
-      if (parsed.month !== current.month || parsed.year !== current.year) {
-        return current;
+      const deviceId = await getDeviceFingerprint();
+      const deviceDocRef = firestore().collection('devices').doc(deviceId).collection('usage').doc('sends');
+      const deviceSnapshot = await deviceDocRef.get();
+      const exists = typeof deviceSnapshot.exists === 'function' ? deviceSnapshot.exists() : Boolean(deviceSnapshot.exists);
+
+      if (exists) {
+        const data = deviceSnapshot.data();
+        const firestoreResetDate = data?.resetDate;
+        const firestoreCount = Number(data?.sendCount) || 0;
+
+        if (firestoreResetDate !== currentResetDate) {
+          void deviceDocRef.set({
+            sendCount: 0,
+            resetDate: currentResetDate,
+            lastUpdated: firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+          return { count: 0, month: currentMonth, year: currentYear };
+        }
+
+        const maxCount = Math.max(localCount, firestoreCount);
+        if (maxCount !== localCount) {
+          void db.setPreference(SHARE_COUNT_KEY, JSON.stringify({ count: maxCount, month: currentMonth, year: currentYear }));
+        }
+        return { count: maxCount, month: currentMonth, year: currentYear };
+      } else {
+        void deviceDocRef.set({
+          sendCount: localCount,
+          resetDate: currentResetDate,
+          lastUpdated: firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
       }
-      return {
-        count: Number(parsed.count) || 0,
-        month: current.month,
-        year: current.year,
-      };
-    } catch {
-      return current;
+    } catch (err) {
+      console.warn('[useSnippets] Device fingerprint sync error:', err);
     }
-  }, []);
+
+    return { count: localCount, month: currentMonth, year: currentYear };
+  }, [getDeviceFingerprint]);
 
   const saveMonthlyShareCount = useCallback(async (value: MonthlyShareCount) => {
     await db.setPreference(SHARE_COUNT_KEY, JSON.stringify(value));
-  }, []);
+
+    // Persist to Device Fingerprint doc in Firestore asynchronously
+    try {
+      const deviceId = await getDeviceFingerprint();
+      const resetDate = `${value.year}-${String(value.month).padStart(2, '0')}`;
+      void firestore()
+        .collection('devices')
+        .doc(deviceId)
+        .collection('usage')
+        .doc('sends')
+        .set({
+          sendCount: value.count,
+          resetDate,
+          lastUpdated: firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    } catch (err) {
+      console.warn('[useSnippets] Failed to persist device usage count:', err);
+    }
+  }, [getDeviceFingerprint]);
 
   const refreshShareUsage = useCallback(async () => {
     const usage = await getMonthlyShareCount();
@@ -195,38 +253,40 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       let shareText = fullContent;
 
       if (!premium) {
-        const usage = await getMonthlyShareCount();
-        if (usage.count >= FREE_SHARE_LIMIT) {
+        if (monthlyShareCount >= FREE_SHARE_LIMIT) {
           setPremiumPromptReason('share-limit');
           setPremiumPromptVisible(true);
           return;
         }
 
-        // Ambiguity: sharing must use the full stored content with no truncation,
-        // while the paywall still sells "No watermark"; only the watermark is appended.
         shareText = `${fullContent}\n\nSent via Sagent`;
-        const nextUsage = { ...usage, count: usage.count + 1 };
-        await saveMonthlyShareCount(nextUsage);
-        setMonthlyShareCount(Math.min(nextUsage.count, FREE_SHARE_LIMIT));
+        const now = new Date();
+        const nextCount = monthlyShareCount + 1;
+        const nextUsage = { count: nextCount, month: now.getMonth() + 1, year: now.getFullYear() };
+        setMonthlyShareCount(Math.min(nextCount, FREE_SHARE_LIMIT));
+        void saveMonthlyShareCount(nextUsage);
       }
 
+      // Execute Native Share immediately!
       await Share.share({
         message: shareText,
         title: snippet.title,
       });
-      await runHaptic(() => Haptics.selectionAsync());
-      await db.incrementUseCount(snippet.id);
+
+      void runHaptic(() => Haptics.selectionAsync());
+      void db.incrementUseCount(snippet.id);
       const now = Date.now();
       setAllSnippets(prev =>
         prev.map(s =>
           s.id === snippet.id ? { ...s, useCount: s.useCount + 1, lastUsedAt: now, updatedAt: now } : s
         )
       );
-      await incrementUsage();
+      void incrementUsage();
     } catch (e: any) {
+      console.error('[useSnippets] Share error:', e);
       setError(e.message ?? 'Failed to share message');
     }
-  }, [getMonthlyShareCount, incrementUsage, isPremiumEnabled, runHaptic, saveMonthlyShareCount]);
+  }, [incrementUsage, isPremiumEnabled, monthlyShareCount, runHaptic, saveMonthlyShareCount]);
 
   const createSnippet = useCallback(async (data: SnippetInsert): Promise<Snippet> => {
     const created = await db.createSnippet(data);
@@ -252,12 +312,23 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const toggleFavorite = useCallback(async (id: string) => {
-    const newVal = await db.toggleFavorite(id);
-    await runHaptic(() => Haptics.selectionAsync());
+    // Optimistic UI update so heart fills/unfills immediately on tap
     setAllSnippets(prev =>
-      prev.map(s => (s.id === id ? { ...s, isFavorite: newVal } : s))
+      prev.map(s => (s.id === id ? { ...s, isFavorite: !s.isFavorite } : s))
     );
-  }, [runHaptic]);
+    try {
+      const newVal = await db.toggleFavorite(id);
+      setAllSnippets(prev =>
+        prev.map(s => (s.id === id ? { ...s, isFavorite: newVal } : s))
+      );
+    } catch (err) {
+      console.error('[useSnippets] toggleFavorite error:', err);
+      // Revert on error
+      setAllSnippets(prev =>
+        prev.map(s => (s.id === id ? { ...s, isFavorite: !s.isFavorite } : s))
+      );
+    }
+  }, []);
 
   const filterByCategory = useCallback((categoryId: string | null) => {
     setActiveCategory(categoryId);
@@ -268,6 +339,7 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const value = useMemo<UseSnippetsReturn>(() => ({
+    allSnippets,
     snippets,
     isLoading,
     error,

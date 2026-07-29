@@ -21,6 +21,8 @@ const BACKEND_VERIFY_URL: string = (_backendVerifyUrl && typeof _backendVerifyUr
   ? _backendVerifyUrl
   : '';
 
+import { db } from '../services/database';
+
 export interface UseSubscriptionResult {
   isAvailable: boolean;
   isPurchasing: boolean;
@@ -30,6 +32,7 @@ export interface UseSubscriptionResult {
   // Returns the billing state observed after the restore attempt so callers
   // can read the correct (non-stale) status without relying on React state.
   restorePurchases: () => Promise<NativeBillingState>;
+  verifyPurchase: (purchaseToken?: string, productId?: string) => Promise<{ active: boolean; error?: string }>;
 }
 
 /**
@@ -214,6 +217,73 @@ export function useSubscription(skus: string[]): UseSubscriptionResult {
     }
   }, []);
 
+  // ── verifyPurchase ────────────────────────────────────────────────────────
+  const verifyPurchase = useCallback(async (token?: string, prodId?: string): Promise<{ active: boolean; error?: string }> => {
+    try {
+      const currentState = await nativeBilling.getCurrentState();
+      const purchases = currentState.purchases ?? [];
+
+      const targetPurchase = purchases.find(p => (!token || p.purchaseToken === token) && (!prodId || p.productId === prodId))
+        ?? purchases[0];
+
+      if (!targetPurchase) {
+        if (currentState.status === 'subscribed') {
+          await db.setPreference('premium_enabled', 'true');
+          return { active: true };
+        }
+        return { active: false, error: 'No purchase found to verify.' };
+      }
+
+      if (BACKEND_VERIFY_URL) {
+        const currentUser = auth().currentUser;
+        if (currentUser) {
+          try {
+            const idToken = await currentUser.getIdToken(true);
+            const response = await fetch(BACKEND_VERIFY_URL, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`,
+              },
+              body: JSON.stringify({
+                uid: currentUser.uid,
+                purchaseToken: targetPurchase.purchaseToken,
+                productId: targetPurchase.productId,
+              }),
+            });
+
+            if (response.ok) {
+              const data = await response.json().catch(() => ({}));
+              if (data?.active) {
+                await db.setPreference('premium_enabled', 'true');
+                if (!targetPurchase.isAcknowledged) {
+                  await nativeBilling.acknowledgePurchase(targetPurchase.purchaseToken).catch(() => {});
+                }
+                return { active: true };
+              }
+            }
+          } catch (fetchErr) {
+            console.warn('[Billing] verifyPurchase network error:', fetchErr);
+          }
+        }
+      }
+
+      // Fallback: If billingState says subscribed and purchase is valid
+      if (currentState.status === 'subscribed') {
+        await db.setPreference('premium_enabled', 'true');
+        if (!targetPurchase.isAcknowledged) {
+          await nativeBilling.acknowledgePurchase(targetPurchase.purchaseToken).catch(() => {});
+        }
+        return { active: true };
+      }
+
+      return { active: false, error: 'Subscription status could not be verified.' };
+    } catch (err: any) {
+      console.error('[Billing] verifyPurchase error:', err);
+      return { active: false, error: err?.message ?? 'Verification failed' };
+    }
+  }, []);
+
   return {
     isAvailable: nativeBilling.isAvailable() && Platform.OS === 'android',
     isPurchasing,
@@ -221,5 +291,6 @@ export function useSubscription(skus: string[]): UseSubscriptionResult {
     products,
     purchase,
     restorePurchases,
+    verifyPurchase,
   };
 }

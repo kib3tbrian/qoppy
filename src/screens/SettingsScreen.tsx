@@ -26,6 +26,7 @@ import {
   Save,
   Tag,
 } from 'lucide-react-native';
+import auth from '@react-native-firebase/auth';
 import { db } from '../services/database';
 import { textFont } from '../constants/typography';
 import { RootStackParamList } from '../types';
@@ -88,6 +89,7 @@ export const SettingsScreen: React.FC = () => {
   const { theme } = useTheme();
   const { isPremium } = useSnippets();
   const { isPro } = useEntitlement();
+  const userEmail = auth().currentUser?.email;
   const [hapticEnabled, setHapticEnabled] = useState(true);
   const [showHowTo, setShowHowTo] = useState(false);
 
@@ -136,11 +138,16 @@ export const SettingsScreen: React.FC = () => {
           activeOpacity={0.88}
         >
           <View style={styles.premiumHeader}>
-            <Crown size={26} color={isPro ? theme.primary : theme.onPrimary} />
+            <Crown size={26} color={isPro ? theme.primary : theme.onPrimary} fill={isPro ? theme.primary : 'transparent'} />
             <Text style={[styles.premiumTitle, { color: isPro ? theme.text : theme.onPrimary }]}>
               {isPro ? 'You are now in Premium' : 'Upgrade to Pro'}
             </Text>
           </View>
+          {isPro && userEmail && (
+            <Text style={[styles.userEmailText, { color: theme.primary }]}>
+              Subscribed as {userEmail}
+            </Text>
+          )}
           <Text style={[styles.premiumSub, { color: isPro ? theme.textSecondary : `${theme.onPrimary}DD` }]}>
             {isPro
               ? 'You have full access to Sagent Pro features. Tap to view your plan details or switch options.'
@@ -306,6 +313,11 @@ const styles = StyleSheet.create({
     ...textFont('regular'),
     fontSize: 15,
     lineHeight: 22,
+  },
+  userEmailText: {
+    ...textFont('semibold'),
+    fontSize: 14,
+    marginBottom: 8,
   },
   shareCard: {
     flexDirection: 'row',

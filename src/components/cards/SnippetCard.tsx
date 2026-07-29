@@ -21,6 +21,7 @@ import Animated, {
   interpolateColor,
   runOnJS,
 } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { Check, Copy, Heart } from 'lucide-react-native';
 import { Snippet } from '../../types';
 import { ANIMATION_DURATION } from '../../constants';
@@ -143,6 +144,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
 
   const handleCopy = useCallback((event?: GestureResponderEvent) => {
     event?.stopPropagation?.();
+    void Haptics.selectionAsync();
     // Trigger copy feedback animation
     copyProgress.value = withSequence(
       withTiming(1, { duration: ANIMATION_DURATION.fast }),
@@ -157,8 +159,9 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
 
   const handleFavorite = useCallback((event?: GestureResponderEvent) => {
     event?.stopPropagation?.();
+    void Haptics.selectionAsync();
     heartScale.value = withSequence(
-      withTiming(1.25, { duration: 120 }),
+      withTiming(1.35, { duration: 120 }),
       withTiming(1, { duration: 120 })
     );
     onFavorite(snippet.id);

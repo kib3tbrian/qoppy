@@ -32,79 +32,7 @@ TextWithDefaults.defaultProps.style = [TextWithDefaults.defaultProps.style, text
 TextInputWithDefaults.defaultProps = TextInputWithDefaults.defaultProps ?? {};
 TextInputWithDefaults.defaultProps.style = [TextInputWithDefaults.defaultProps.style, textFont()];
 
-// ── Error boundary ────────────────────────────────────────────────────────────
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-  message: string;
-}
-
-class AppErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  ErrorBoundaryState
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false, message: '' };
-  }
-
-  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
-    const message =
-      error instanceof Error ? error.message : 'An unexpected error occurred.';
-    return { hasError: true, message };
-  }
-
-  componentDidCatch(error: unknown, info: React.ErrorInfo) {
-    console.error('[AppErrorBoundary] Uncaught error:', error, info.componentStack);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <View style={errorStyles.container}>
-          <Text style={errorStyles.title}>Something went wrong</Text>
-          <Text style={errorStyles.message}>{this.state.message}</Text>
-          <Text
-            style={errorStyles.retry}
-            onPress={() => this.setState({ hasError: false, message: '' })}
-          >
-            Tap to retry
-          </Text>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-const errorStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-    backgroundColor: '#14131C',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#F8F7FF',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  message: {
-    fontSize: 14,
-    color: '#B5B3C7',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  retry: {
-    fontSize: 15,
-    color: '#8B5CF6',
-    fontWeight: '600',
-  },
-});
+import ErrorBoundary from './src/components/common/ErrorBoundary';
 
 // ── App shell ─────────────────────────────────────────────────────────────────
 
@@ -138,12 +66,12 @@ export default function App() {
   const fontsReady = fontsLoaded || fontError !== null;
 
   return (
-    <AppErrorBoundary>
+    <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
           <AppShell fontsReady={fontsReady} />
         </AuthProvider>
       </ThemeProvider>
-    </AppErrorBoundary>
+    </ErrorBoundary>
   );
 }

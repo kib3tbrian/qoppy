@@ -160,7 +160,7 @@ class DatabaseService {
       WHERE s.is_favorite = 1
       ORDER BY s.use_count DESC
     `);
-    return rows.map(this.mapSnippet);
+    return rows.map(row => this.mapSnippet(row));
   }
 
   async createSnippet(data: SnippetInsert): Promise<Snippet> {

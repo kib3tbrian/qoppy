@@ -7,7 +7,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Check, Crown, LoaderCircle, RefreshCw, X } from 'lucide-react-native';
+import { AlertCircle, Check, Crown, LoaderCircle, RefreshCw, X } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 import { textFont } from '../constants/typography';
 import { useTheme } from '../hooks/useTheme';
@@ -91,6 +91,10 @@ export const PaywallScreen: React.FC = () => {
   const [isLinkingAuth, setIsLinkingAuth] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  type VerificationStatus = 'idle' | 'verifying' | 'success' | 'error';
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('idle');
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+
   const {
     isAvailable,
     isPurchasing,
@@ -98,7 +102,83 @@ export const PaywallScreen: React.FC = () => {
     products,
     purchase: launchPurchase,
     restorePurchases,
+    verifyPurchase,
   } = useSubscription(SUBSCRIPTION_SKUS_LIST);
+
+  // Trigger verification state when billing indicates subscribed and not yet Pro
+  React.useEffect(() => {
+    if (billingState.status === 'subscribed' && !isPro && verificationStatus === 'idle') {
+      setVerificationStatus('verifying');
+    }
+  }, [billingState.status, isPro, verificationStatus]);
+
+  // Automatically transition back to idle if Firestore confirms isPro while verifying
+  // This lets the normal isPro management screen render instead of a blocking interstitial.
+  React.useEffect(() => {
+    if (isPro && (verificationStatus === 'verifying' || verificationStatus === 'success')) {
+      setVerificationStatus('idle');
+      Toast.show({ type: 'success', text1: 'You\'re now a Pro Closer! 🎉', text2: 'All Pro features are unlocked.' });
+    }
+  }, [isPro, verificationStatus]);
+
+  // Handle async backend verification with 15-second timeout safeguard
+  React.useEffect(() => {
+    if (verificationStatus !== 'verifying') return;
+
+    let isMounted = true;
+    setVerificationError(null);
+
+    // 15-second timeout safeguard
+    const timeoutId = setTimeout(() => {
+      if (isMounted && verificationStatus === 'verifying') {
+        if (isPro) {
+          setVerificationStatus('idle');
+        } else {
+          Toast.show({ type: 'error', text1: 'Verification timed out', text2: 'Please try again or restore your purchase.' });
+          setVerificationStatus('idle');
+        }
+      }
+    }, 15000);
+
+    (async () => {
+      try {
+        const result = await verifyPurchase();
+        if (!isMounted) return;
+
+        if (result.active || isPro) {
+          clearTimeout(timeoutId);
+          setVerificationStatus('idle');
+        } else {
+          setTimeout(() => {
+            if (!isMounted) return;
+            if (isPro) {
+              clearTimeout(timeoutId);
+              setVerificationStatus('idle');
+            } else {
+              clearTimeout(timeoutId);
+              Toast.show({ type: 'error', text1: 'No active subscription found', text2: 'Please try again or restore your purchase.' });
+              setVerificationStatus('idle');
+            }
+          }, 2500);
+        }
+      } catch (err: any) {
+        if (!isMounted) return;
+        if (isPro) {
+          clearTimeout(timeoutId);
+          setVerificationStatus('idle');
+        } else {
+          clearTimeout(timeoutId);
+          Toast.show({ type: 'error', text1: 'Verification error', text2: 'Please try again or restore your purchase.' });
+          setVerificationStatus('idle');
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [verificationStatus, verifyPurchase, isPro]);
 
   // ── Find the sagent_pro product and build offer lookup by basePlanId ─────
   const sagentProProduct = useMemo(
@@ -183,8 +263,9 @@ export const PaywallScreen: React.FC = () => {
 
     try {
       await launchPurchase(sagentProProduct.productId, selectedOffer.offerToken);
+      setVerificationStatus('verifying');
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: error?.message ?? 'Purchase failed. Please try again.' });
+      Toast.show({ type: 'error', text1: 'Purchase failed', text2: 'Please try again.' });
     }
   }, [isAvailable, launchPurchase, offersByBasePlan, plan, sagentProProduct, signInWithGoogleAndLink, user?.isAnonymous]);
 
@@ -198,12 +279,13 @@ export const PaywallScreen: React.FC = () => {
     try {
       const freshState = await restorePurchases();
       if (freshState.status === 'subscribed') {
-        Toast.show({ type: 'success', text1: 'Subscription verified and active!' });
+        setVerificationStatus('verifying');
+        Toast.show({ type: 'success', text1: 'Subscription found! Verifying...' });
       } else {
         Toast.show({ type: 'info', text1: 'No active subscription was found.' });
       }
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: error?.message ?? 'Restore failed. Please try again.' });
+      Toast.show({ type: 'error', text1: 'Restore failed', text2: 'Please try again.' });
     } finally {
       setIsRefreshing(false);
     }
@@ -230,8 +312,9 @@ export const PaywallScreen: React.FC = () => {
 
     try {
       await launchPurchase(sagentProProduct.productId, selectedOffer.offerToken);
+      setVerificationStatus('verifying');
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: error?.message ?? 'Plan change failed. Please try again.' });
+      Toast.show({ type: 'error', text1: 'Plan change failed', text2: 'Please try again.' });
     }
   }, [basePlanId, isAvailable, launchPurchase, offersByBasePlan, plan, sagentProProduct]);
 
@@ -245,31 +328,49 @@ export const PaywallScreen: React.FC = () => {
     );
   }
 
-  // 2. Purchased pending verification / webhook lag
-  const isPurchasedPendingVerification = billingState.status === 'subscribed' && !isPro;
-  if (isPurchasedPendingVerification) {
+  // 2. Background verification banner handled within main view (does not block opening paywall)
+
+  // 3. Success — no interstitial screen; isPro check below handles the Pro management view.
+  //    A Toast is shown automatically when verification succeeds (see effect above).
+
+  // 4. Error / Timeout Screen
+  if (verificationStatus === 'error') {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
-        <LoaderCircle size={40} color={theme.primary} />
-        <Text style={[styles.heroTitle, { color: theme.text, marginTop: 16 }]}>Finalizing your purchase...</Text>
+        <View style={[styles.iconCircle, { backgroundColor: `${theme.danger}20` }]}>
+          <AlertCircle size={44} color={theme.danger} />
+        </View>
+        <Text style={[styles.heroTitle, { color: theme.text, marginTop: 24 }]}>Verification Failed</Text>
         <Text style={[styles.heroSubtitle, { color: theme.textSecondary, marginHorizontal: 24, marginTop: 8 }]}>
-          We are confirming your purchase with Google Play. This usually takes just a few seconds.
+          {verificationError ?? "We couldn't confirm your subscription status. Please try again or restore your purchase."}
         </Text>
-        <TouchableOpacity
-          onPress={() => void handleRestore()}
-          style={[styles.retryButton, { backgroundColor: theme.primary, marginTop: 24 }]}
-          activeOpacity={0.85}
-          disabled={isRefreshing}
-        >
-          {isRefreshing ? (
-            <LoaderCircle size={18} color={theme.onPrimary} />
-          ) : (
-            <RefreshCw size={18} color={theme.onPrimary} />
-          )}
-          <Text style={[styles.retryButtonText, { color: theme.onPrimary }]}>
-            {isRefreshing ? 'Checking...' : 'Refresh Status'}
-          </Text>
-        </TouchableOpacity>
+
+        <View style={{ width: '100%', paddingHorizontal: 24, marginTop: 28, gap: 12 }}>
+          <TouchableOpacity
+            onPress={() => {
+              setVerificationStatus('verifying');
+            }}
+            style={[styles.cta, { backgroundColor: theme.primary, shadowColor: theme.primary }]}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.ctaText, { color: theme.onPrimary }]}>Try again</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={async () => {
+              await handleRestore();
+            }}
+            style={[styles.restoreButton, { borderColor: theme.border }]}
+            activeOpacity={0.85}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? (
+              <LoaderCircle size={18} color={theme.text} />
+            ) : (
+              <Text style={[styles.restoreButtonText, { color: theme.text }]}>Restore purchase</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -298,7 +399,7 @@ export const PaywallScreen: React.FC = () => {
         {/* ── App Logo Branding & Heading ── */}
         <View style={styles.hero}>
           <BrandIcon size={88} />
-          <Text style={[styles.heroTitle, { color: theme.text }]}>Enjoy the 3 perks of Pro</Text>
+          <Text style={[styles.heroTitle, { color: theme.text }]}>You are on premium</Text>
           <View style={[styles.daysChip, { backgroundColor: `${theme.primary}18` }]}>
             <Crown size={16} color={theme.primary} />
             <Text style={[styles.daysChipText, { color: theme.primary }]}>{daysLeftText}</Text>
@@ -500,7 +601,6 @@ export const PaywallScreen: React.FC = () => {
         })}
       </View>
 
-      {/* ── CTA ── */}
       <TouchableOpacity
         style={[
           styles.cta,
@@ -524,8 +624,8 @@ export const PaywallScreen: React.FC = () => {
         ) : (
           <Text style={[styles.ctaText, { color: theme.onPrimary }]}>
             {user?.isAnonymous
-              ? `Sign in to Start ${active.label}`
-              : `Start ${active.label} — ${active.price}${active.period}`}
+              ? `Sign in to Start with ${active.label.toLowerCase()}`
+              : `Start with ${active.label.toLowerCase()}`}
           </Text>
         )}
       </TouchableOpacity>
@@ -552,6 +652,13 @@ const styles = StyleSheet.create({
   content: { padding: 24, paddingTop: 64, paddingBottom: 60 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   loadingText: { ...textFont('medium'), fontSize: 16, marginTop: 16 },
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   retryButton: {
     flexDirection: 'row',
     alignItems: 'center',

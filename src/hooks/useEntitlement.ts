@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 import { useAuth } from '../providers/AuthProvider';
 import { db } from '../services/database';
@@ -24,6 +25,8 @@ export function useEntitlement(): UseEntitlementReturn {
   const [data, setData] = useState<EntitlementData>({ isPro: false });
   const [loading, setLoading] = useState(true);
   const lastSyncedRef = useRef<string | null>(null);
+  const lastResumedTimeRef = useRef<number>(0);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   useEffect(() => {
     if (!user) {
@@ -33,6 +36,42 @@ export function useEntitlement(): UseEntitlementReturn {
     }
 
     let unsubscribe: (() => void) | undefined;
+
+    const fetchDoc = async () => {
+      try {
+        const docSnapshot = await firestore()
+          .collection('users')
+          .doc(user.uid)
+          .collection('entitlement')
+          .doc('pro')
+          .get();
+
+        let isPro = false;
+        let basePlanId: string | undefined;
+        let expiryDate: string | undefined;
+
+        const exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : Boolean(docSnapshot.exists);
+        if (exists) {
+          const raw = docSnapshot.data();
+          if (raw) {
+            isPro = raw.isPro ?? false;
+            basePlanId = raw.basePlanId;
+            expiryDate = raw.expiryDate;
+          }
+        }
+
+        setData({ isPro, basePlanId, expiryDate });
+        const value = isPro ? 'true' : 'false';
+        if (lastSyncedRef.current !== value) {
+          lastSyncedRef.current = value;
+          db.setPreference('premium_enabled', value).catch((err) =>
+            console.error('[Entitlement] Failed to persist premium flag:', err)
+          );
+        }
+      } catch (err) {
+        console.error('[Entitlement] Re-sync fetch error:', err);
+      }
+    };
 
     try {
       unsubscribe = firestore()
@@ -90,8 +129,24 @@ export function useEntitlement(): UseEntitlementReturn {
         .finally(() => setLoading(false));
     }
 
+    // AppState listener to re-sync on resume from background/inactive
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      const isResuming = (appStateRef.current === 'background' || appStateRef.current === 'inactive') && nextAppState === 'active';
+      appStateRef.current = nextAppState;
+
+      if (isResuming) {
+        const now = Date.now();
+        // 2-second debounce
+        if (now - lastResumedTimeRef.current >= 2000) {
+          lastResumedTimeRef.current = now;
+          void fetchDoc();
+        }
+      }
+    });
+
     return () => {
       if (unsubscribe) unsubscribe();
+      subscription.remove();
     };
   }, [user]);
 

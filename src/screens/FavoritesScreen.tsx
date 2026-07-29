@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useLayoutEffect, useMemo } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo } from 'react';
 import {
   View,
   FlatList,
@@ -6,12 +6,11 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Heart } from 'lucide-react-native';
 
 import { SnippetCard } from '../components/cards/SnippetCard';
-import { db } from '../services/database';
 import { useSnippets } from '../hooks/useSnippets';
 import { Snippet, RootStackParamList } from '../types';
 import { textFont } from '../constants/typography';
@@ -25,10 +24,8 @@ const NUM_COLUMNS = 2;
 export const FavoritesScreen: React.FC = () => {
   const navigation = useNavigation<NavProp>();
   const { theme } = useTheme();
-  const [favorites, setFavorites] = useState<Snippet[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const hasLoadedOnce = React.useRef(false);
-  const { copiedId, copySnippet, shareSnippet, toggleFavorite: toggleFav, deleteSnippet } = useSnippets();
+  const { allSnippets, isLoading, copiedId, copySnippet, shareSnippet, toggleFavorite, deleteSnippet } = useSnippets();
+  const favorites = useMemo(() => allSnippets.filter(s => s.isFavorite), [allSnippets]);
   const gridFavorites = useMemo(() => padGridItems(favorites, NUM_COLUMNS), [favorites]);
 
   useLayoutEffect(() => {
@@ -36,34 +33,6 @@ export const FavoritesScreen: React.FC = () => {
       headerTitle: 'Sagent',
     });
   }, [navigation]);
-
-  const loadFavorites = useCallback(async () => {
-    // Only show the full-screen spinner on the very first load.
-    // Subsequent focus refreshes update silently to avoid the layout jump.
-    if (!hasLoadedOnce.current) {
-      setIsLoading(true);
-    }
-    try {
-      const data = await db.getFavoriteSnippets();
-      setFavorites(data);
-    } finally {
-      setIsLoading(false);
-      hasLoadedOnce.current = true;
-    }
-  }, []);
-
-  useFocusEffect(useCallback(() => {
-    let cancelled = false;
-    loadFavorites().then(() => {
-      if (cancelled) return;
-    });
-    return () => { cancelled = true; };
-  }, [loadFavorites]));
-
-  const handleToggleFav = useCallback(async (id: string) => {
-    await toggleFav(id);
-    setFavorites(prev => prev.filter(s => s.id !== id));
-  }, [toggleFav]);
 
   const renderItem = useCallback(
     ({ item }: { item: GridListItem<Snippet> }) =>
@@ -75,18 +44,15 @@ export const FavoritesScreen: React.FC = () => {
           isCopied={copiedId === item.id}
           onCopy={copySnippet}
           onShare={shareSnippet}
-          onFavorite={handleToggleFav}
+          onFavorite={toggleFavorite}
           onEdit={snippet => navigation.navigate('AddSnippet', { snippetId: snippet.id })}
-          onDelete={async id => {
-            await deleteSnippet(id);
-            setFavorites(prev => prev.filter(s => s.id !== id));
-          }}
+          onDelete={deleteSnippet}
         />
       ),
-    [copiedId, copySnippet, deleteSnippet, handleToggleFav, navigation, shareSnippet]
+    [copiedId, copySnippet, deleteSnippet, navigation, shareSnippet, toggleFavorite]
   );
 
-  if (isLoading) {
+  if (isLoading && allSnippets.length === 0) {
     return (
       <View style={[styles.center, { backgroundColor: theme.background }]}>
         <ActivityIndicator color={theme.primary} size="large" />

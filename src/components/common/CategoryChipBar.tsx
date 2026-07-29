@@ -9,6 +9,7 @@ import {
   View,
   TouchableOpacity,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Settings } from 'lucide-react-native';
 import { Category } from '../../types';
 import { useTheme } from '../../hooks/useTheme';
@@ -29,6 +30,11 @@ export const CategoryChipBar: React.FC<CategoryChipBarProps> = ({
 }) => {
   const { theme } = useTheme();
 
+  const handleSelect = (id: string | null) => {
+    void Haptics.selectionAsync();
+    onSelect(id);
+  };
+
   return (
     <ScrollView
       horizontal
@@ -40,7 +46,7 @@ export const CategoryChipBar: React.FC<CategoryChipBarProps> = ({
         label="All"
         color={theme.primary}
         isActive={activeId === null}
-        onPress={() => onSelect(null)}
+        onPress={() => handleSelect(null)}
         theme={theme}
       />
       {categories.map(cat => (
@@ -49,14 +55,17 @@ export const CategoryChipBar: React.FC<CategoryChipBarProps> = ({
           label={cat.name}
           color={cat.color}
           isActive={activeId === cat.id}
-          onPress={() => onSelect(cat.id)}
+          onPress={() => handleSelect(cat.id)}
           theme={theme}
         />
       ))}
 
       {onManage && (
         <TouchableOpacity
-          onPress={onManage}
+          onPress={() => {
+            void Haptics.selectionAsync();
+            onManage();
+          }}
           style={[styles.manageBtn, { borderColor: theme.border, backgroundColor: theme.surfaceAlt }]}
         >
           <Settings size={14} color={theme.textSecondary} />
