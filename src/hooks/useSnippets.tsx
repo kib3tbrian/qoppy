@@ -57,7 +57,6 @@ const SnippetsContext = createContext<UseSnippetsReturn | null>(null);
 export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isPro } = useEntitlement();
   const [allSnippets, setAllSnippets] = useState<Snippet[]>([]);
-  const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -70,7 +69,7 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { incrementUsage } = useRatingPrompt();
 
-  useEffect(() => {
+  const snippets = useMemo(() => {
     let filtered = allSnippets;
 
     if (activeCategory) {
@@ -87,7 +86,7 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       );
     }
 
-    setSnippets(filtered);
+    return filtered;
   }, [activeCategory, allSnippets, searchQuery]);
 
   useEffect(() => () => {
@@ -141,13 +140,9 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const refreshShareUsage = useCallback(async () => {
-    const [premium, usage] = await Promise.all([
-      isPremiumEnabled(),
-      getMonthlyShareCount(),
-    ]);
-    setIsPremium(premium);
+    const usage = await getMonthlyShareCount();
     setMonthlyShareCount(Math.min(usage.count, FREE_SHARE_LIMIT));
-  }, [getMonthlyShareCount, isPremiumEnabled]);
+  }, [getMonthlyShareCount]);
 
   const refresh = useCallback(async () => {
     try {

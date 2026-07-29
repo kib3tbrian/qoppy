@@ -46,7 +46,8 @@ export function useEntitlement(): UseEntitlementReturn {
             let basePlanId: string | undefined;
             let expiryDate: string | undefined;
 
-            if (docSnapshot.exists) {
+            const exists = typeof docSnapshot.exists === 'function' ? docSnapshot.exists() : Boolean(docSnapshot.exists);
+            if (exists) {
               const raw = docSnapshot.data();
               if (raw) {
                 isPro = raw.isPro ?? false;

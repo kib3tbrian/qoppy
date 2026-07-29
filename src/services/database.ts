@@ -65,12 +65,7 @@ class DatabaseService {
       );
     `);
 
-    // Cleanup legacy 'welcome' category and example welcome snippets
-    await db.execAsync(`
-      DELETE FROM categories WHERE id = 'welcome';
-      DELETE FROM snippets WHERE title = 'Welcome' AND content LIKE 'Welcome to the app%';
-      DELETE FROM snippets WHERE title = 'Welcome Message' AND content LIKE 'Welcome! We are thrilled%';
-    `);
+
 
     await this.seedDefaultCategories();
     await this.seedExampleMessages();
@@ -126,7 +121,7 @@ class DatabaseService {
         s.id, s.title, s.content, s.category_id as categoryId,
         s.is_favorite as isFavorite, s.use_count as useCount, s.last_used_at as lastUsedAt,
         s.created_at as createdAt, s.updated_at as updatedAt,
-        COALESCE(c.name, 'Other') as categoryName,
+        COALESCE(c.name, 'Welcome') as categoryName,
         COALESCE(c.color, '#8B5CF6') as categoryColor
       FROM snippets s
       LEFT JOIN categories c ON s.category_id = c.id
@@ -142,7 +137,7 @@ class DatabaseService {
         s.id, s.title, s.content, s.category_id as categoryId,
         s.is_favorite as isFavorite, s.use_count as useCount, s.last_used_at as lastUsedAt,
         s.created_at as createdAt, s.updated_at as updatedAt,
-        COALESCE(c.name, 'Other') as categoryName,
+        COALESCE(c.name, 'Welcome') as categoryName,
         COALESCE(c.color, '#8B5CF6') as categoryColor
       FROM snippets s
       LEFT JOIN categories c ON s.category_id = c.id
@@ -158,7 +153,7 @@ class DatabaseService {
         s.id, s.title, s.content, s.category_id as categoryId,
         s.is_favorite as isFavorite, s.use_count as useCount, s.last_used_at as lastUsedAt,
         s.created_at as createdAt, s.updated_at as updatedAt,
-        COALESCE(c.name, 'Other') as categoryName,
+        COALESCE(c.name, 'Welcome') as categoryName,
         COALESCE(c.color, '#8B5CF6') as categoryColor
       FROM snippets s
       LEFT JOIN categories c ON s.category_id = c.id
@@ -301,17 +296,17 @@ class DatabaseService {
 
   async deleteCategory(id: string): Promise<void> {
     const db = this.getDb();
-    if (id === 'other') {
-      // 'Other' is the permanent fallback category — it cannot be deleted.
+    if (id === 'welcome') {
+      // 'Welcome' is the default category — it cannot be deleted.
       return;
     }
-    // Reassign orphaned snippets to 'Other' before removing the category.
-    // Ensure 'Other' exists first so the foreign key reference is valid.
+    // Reassign orphaned snippets to 'welcome' before removing the category.
+    // Ensure 'welcome' exists first so the foreign key reference is valid.
     await db.runAsync(
-      `INSERT OR IGNORE INTO categories (id, name, color, icon) VALUES ('other', 'Other', '#8B5CF6', 'tag')`
+      `INSERT OR IGNORE INTO categories (id, name, color, icon) VALUES ('welcome', 'Welcome', '#8B5CF6', 'tag')`
     );
     await db.runAsync(
-      `UPDATE snippets SET category_id = 'other' WHERE category_id = ?`,
+      `UPDATE snippets SET category_id = 'welcome' WHERE category_id = ?`,
       [id]
     );
     await db.runAsync(`DELETE FROM categories WHERE id = ?`, [id]);

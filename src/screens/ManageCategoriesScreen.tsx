@@ -70,7 +70,6 @@ const CategoryRow: React.FC<CategoryRowProps> = ({ category, onEdit, onDelete, c
   const Icon = ICONS[category.icon] ?? Tag;
   return (
     <Animated.View
-      entering={FadeIn.duration(ANIMATION_DURATION.normal)}
       exiting={FadeOut.duration(ANIMATION_DURATION.fast)}
       layout={Layout.springify()}
       style={[styles.row, { backgroundColor: theme.surface, borderColor: theme.border }]}
@@ -252,10 +251,10 @@ export const ManageCategoriesScreen: React.FC = () => {
   };
 
   const handleDelete = (cat: Category) => {
-    if (cat.id === 'other') {
+    if (cat.id === 'welcome') {
       Alert.alert(
-        'Cannot delete Other',
-        'The Other category must remain as the fallback category.'
+        'Cannot delete Welcome category',
+        'The Welcome category must remain as the default category.'
       );
       return;
     }
@@ -270,7 +269,7 @@ export const ManageCategoriesScreen: React.FC = () => {
 
     Alert.alert(
       `Delete "${cat.name}"?`,
-      'Messages in this category will move to the "Other" category.',
+      'Messages in this category will move to the "Welcome" category.',
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -306,7 +305,7 @@ export const ManageCategoriesScreen: React.FC = () => {
             category={item}
             onEdit={openEdit}
             onDelete={handleDelete}
-            canDelete={item.id !== 'other' && categories.length > 1}
+            canDelete={item.id !== 'welcome' && categories.length > 1}
           />
         )}
         ListEmptyComponent={

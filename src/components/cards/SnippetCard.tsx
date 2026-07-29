@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
   },
   contentWrap: {
     flex: 1,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     minHeight: 0,
   },
   categoryBadge: {
@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    marginBottom: 4,
+    marginBottom: 6,
     gap: 4,
   },
   categoryDot: {
@@ -361,20 +361,21 @@ const styles = StyleSheet.create({
   title: {
     ...textFont('semibold'),
     fontSize: 14,
-    lineHeight: 16,
-    marginBottom: 2,
+    lineHeight: 18,
+    marginTop: 2,
+    marginBottom: 6,
   },
   content: {
     ...textFont('regular'),
     fontSize: 12,
-    lineHeight: 15,
+    lineHeight: 16,
     flexShrink: 1,
   },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 6,
+    marginTop: 8,
   },
   actions: {
     flexDirection: 'row',

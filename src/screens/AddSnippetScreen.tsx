@@ -40,9 +40,9 @@ export const AddSnippetScreen: React.FC = () => {
   const categoryItems = categories.length > 0
     ? categories
     : [
-      DEFAULT_CATEGORIES.find(cat => cat.id === 'other') ?? {
-        id: 'other',
-        name: 'Other',
+      DEFAULT_CATEGORIES.find(cat => cat.id === 'welcome') ?? {
+        id: 'welcome',
+        name: 'Welcome',
         color: '#8B5CF6',
         icon: 'tag',
         createdAt: Date.now(),
@@ -51,7 +51,7 @@ export const AddSnippetScreen: React.FC = () => {
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>(categoryItems[0]?.id ?? 'other');
+  const [selectedCategory, setSelectedCategory] = useState<string>(categoryItems[0]?.id ?? 'welcome');
   const [isSaving, setIsSaving] = useState(false);
   const [titleError, setTitleError] = useState('');
   const [contentError, setContentError] = useState('');
@@ -67,7 +67,7 @@ export const AddSnippetScreen: React.FC = () => {
         if (s) {
           setTitle(s.title);
           setContent(s.content);
-          setSelectedCategory(s.categoryId ?? categoryItems[0]?.id ?? 'other');
+          setSelectedCategory(s.categoryId ?? categoryItems[0]?.id ?? 'welcome');
         }
       });
       return () => { cancelled = true; };

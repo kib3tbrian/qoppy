@@ -70,8 +70,8 @@ export const HomeScreen: React.FC = () => {
   const visibleCategories = categories.length > 0
     ? categories
     : [
-      DEFAULT_CATEGORIES.find(cat => cat.id === 'other') ??
-      { id: 'other', name: 'Other', color: '#8B5CF6', icon: 'tag', createdAt: Date.now() },
+      DEFAULT_CATEGORIES.find(cat => cat.id === 'welcome') ??
+      { id: 'welcome', name: 'Welcome', color: '#8B5CF6', icon: 'tag', createdAt: Date.now() },
     ];
   const activeCategoryId = activeCategory && existingCategoryIds.has(activeCategory)
     ? activeCategory
@@ -117,8 +117,8 @@ export const HomeScreen: React.FC = () => {
       ? template.categoryId
       : activeCategory && existingCategoryIds.has(activeCategory)
         ? activeCategory
-        : existingCategoryIds.has('other')
-          ? 'other'
+        : existingCategoryIds.has('welcome')
+          ? 'welcome'
           : null;
 
     await createSnippet({
@@ -233,7 +233,7 @@ export const HomeScreen: React.FC = () => {
           categories={visibleCategories}
           activeId={activeCategoryId}
           onSelect={filterByCategory}
-          onManage={() => requestAnimationFrame(() => navigation.navigate('ManageCategories'))}
+          onManage={() => navigation.navigate('ManageCategories')}
         />
         <FreeSendIndicator />
       </View>
