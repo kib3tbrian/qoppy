@@ -21,6 +21,7 @@ export interface AppThemePalette {
   success: string;
   successSoft: string;
   danger: string;
+  warning: string;
   header: string;
   tabGlass: string;
   tabBackdrop: string;
@@ -47,6 +48,7 @@ const LIGHT_THEME: AppThemePalette = {
   success: '#10B981',
   successSoft: '#ECFDF5',
   danger: '#EF4444',
+  warning: '#F59E0B',
   header: '#FFFFFF',
   tabGlass: 'rgba(35, 24, 60, 0.58)',
   tabBackdrop: 'rgba(27, 18, 48, 0.42)',
@@ -73,6 +75,7 @@ const DARK_THEME: AppThemePalette = {
   success: '#34D399',
   successSoft: '#183127',
   danger: '#FB7185',
+  warning: '#FBBF24',
   header: '#1A1824',
   tabGlass: 'rgba(15, 13, 24, 0.84)',
   tabBackdrop: 'rgba(8, 7, 14, 0.56)',

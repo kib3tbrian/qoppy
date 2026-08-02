@@ -45,6 +45,8 @@ import { Category } from '../types';
 import { CATEGORY_COLORS, ANIMATION_DURATION } from '../constants';
 import { useTheme } from '../hooks/useTheme';
 import { textFont } from '../constants/typography';
+import { EmptyState, OfflineBadge } from '../components/common/UIStates';
+import { useNetwork } from '../providers/NetworkProvider';
 
 // ── Icon catalogue ─────────────────────────────────────────────────────────
 
@@ -68,6 +70,17 @@ interface CategoryRowProps {
 const CategoryRow: React.FC<CategoryRowProps> = ({ category, onEdit, onDelete, canDelete }) => {
   const { theme } = useTheme();
   const Icon = ICONS[category.icon] ?? Tag;
+  
+  // Debug logging
+  React.useEffect(() => {
+    console.log('[CategoryRow] Rendering category:', {
+      id: category.id,
+      name: category.name,
+      canDelete,
+      isWelcome: category.id === 'welcome'
+    });
+  }, [category.id, category.name, canDelete]);
+  
   return (
     <Animated.View
       exiting={FadeOut.duration(ANIMATION_DURATION.fast)}
@@ -89,7 +102,10 @@ const CategoryRow: React.FC<CategoryRowProps> = ({ category, onEdit, onDelete, c
       {canDelete && (
         <TouchableOpacity
           style={styles.rowBtn}
-          onPress={() => onDelete(category)}
+          onPress={() => {
+            console.log('[CategoryRow] Delete button pressed for:', { id: category.id, name: category.name });
+            onDelete(category);
+          }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Trash2 size={16} color={theme.danger} />
@@ -235,6 +251,7 @@ const EditorModal: React.FC<EditorModalProps> = ({ visible, initial, onSave, onC
 export const ManageCategoriesScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
+  const { isOffline, isSlow } = useNetwork();
   const { categories, createCategory, updateCategory, deleteCategory } = useCategories();
   const { refresh: refreshSnippets } = useSnippets();
   const [editorVisible, setEditorVisible] = useState(false);
@@ -251,7 +268,15 @@ export const ManageCategoriesScreen: React.FC = () => {
   };
 
   const handleDelete = (cat: Category) => {
+    // Debug logging
+    console.log('[ManageCategories] handleDelete called for category:', { 
+      id: cat.id, 
+      name: cat.name,
+      isWelcome: cat.id === 'welcome'
+    });
+    
     if (cat.id === 'welcome') {
+      console.log('[ManageCategories] BLOCKED: Attempt to delete welcome category');
       Alert.alert(
         'Cannot delete Welcome category',
         'The Welcome category must remain as the default category.'
@@ -259,14 +284,7 @@ export const ManageCategoriesScreen: React.FC = () => {
       return;
     }
 
-    if (categories.length <= 1) {
-      Alert.alert(
-        'At least one category is required',
-        'You must keep at least one category in order to organize messages.'
-      );
-      return;
-    }
-
+    console.log('[ManageCategories] Showing delete confirmation for:', cat.name);
     Alert.alert(
       `Delete "${cat.name}"?`,
       'Messages in this category will move to the "Welcome" category.',
@@ -276,8 +294,19 @@ export const ManageCategoriesScreen: React.FC = () => {
           text: 'Delete', 
           style: 'destructive', 
           onPress: async () => {
-            await deleteCategory(cat.id);
-            await refreshSnippets();
+            try {
+              console.log('[ManageCategories] User confirmed deletion. Deleting:', cat.id);
+              await deleteCategory(cat.id);
+              console.log('[ManageCategories] Category deleted successfully. Refreshing snippets...');
+              await refreshSnippets();
+              console.log('[ManageCategories] Snippets refreshed successfully');
+            } catch (error) {
+              console.error('[ManageCategories] Delete error:', error);
+              Alert.alert(
+                'Unable to delete category',
+                'Something went wrong. Please try again.'
+              );
+            }
           } 
         },
       ]
@@ -285,17 +314,26 @@ export const ManageCategoriesScreen: React.FC = () => {
   };
 
   const handleSave = async (name: string, color: string, icon: string) => {
-    if (editingCat?.id) {
-      await updateCategory(editingCat.id, name, color, icon);
-    } else {
-      await createCategory(name, color, icon);
+    try {
+      if (editingCat?.id) {
+        await updateCategory(editingCat.id, name, color, icon);
+      } else {
+        await createCategory(name, color, icon);
+      }
+      await refreshSnippets();
+      setEditorVisible(false);
+    } catch (err) {
+      console.error('[ManageCategories] Save error:', err);
+      Alert.alert(
+        'Unable to save category',
+        'We couldn\'t save your category right now. Please try again.'
+      );
     }
-    await refreshSnippets();
-    setEditorVisible(false);
   };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <OfflineBadge isOffline={isOffline} isSlow={isSlow} />
       <FlatList
         data={categories}
         keyExtractor={item => item.id}
@@ -305,15 +343,15 @@ export const ManageCategoriesScreen: React.FC = () => {
             category={item}
             onEdit={openEdit}
             onDelete={handleDelete}
-            canDelete={item.id !== 'welcome' && categories.length > 1}
+            canDelete={item.id !== 'welcome'}
           />
         )}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Tag size={46} color={theme.primary} strokeWidth={2} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>No categories yet</Text>
-            <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>Tap + to create your first one</Text>
-          </View>
+          <EmptyState
+            icon={<Tag size={46} color={theme.primary} strokeWidth={2} />}
+            title="No categories yet"
+            subtitle="Tap + to create your first one"
+          />
         }
         ListHeaderComponent={
           <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>

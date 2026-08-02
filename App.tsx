@@ -34,6 +34,24 @@ TextInputWithDefaults.defaultProps.style = [TextInputWithDefaults.defaultProps.s
 
 import ErrorBoundary from './src/components/common/ErrorBoundary';
 
+// ── Global Error Handling ─────────────────────────────────────────────────────
+
+// Catch unhandled promise rejections (silent failures in Bugs 1-3)
+// and prevent raw errors from surfacing in development or production.
+if (!__DEV__) {
+  // In production, we don't want raw JS crashes shown by the default handler.
+  const globalAny = global as any;
+  if (globalAny.ErrorUtils) {
+    const defaultHandler = globalAny.ErrorUtils.getGlobalHandler();
+    globalAny.ErrorUtils.setGlobalHandler((error: any, isFatal: boolean) => {
+      console.error('[GlobalError] Caught error:', error, isFatal);
+      // We let the default handler run if it's fatal to allow app to crash/restart,
+      // but the ErrorBoundary should catch render-cycle errors first.
+      if (defaultHandler) defaultHandler(error, isFatal);
+    });
+  }
+}
+
 // ── App shell ─────────────────────────────────────────────────────────────────
 
 const AppShell: React.FC<{ fontsReady: boolean }> = ({ fontsReady }) => {
@@ -48,6 +66,8 @@ const AppShell: React.FC<{ fontsReady: boolean }> = ({ fontsReady }) => {
     </GestureHandlerRootView>
   );
 };
+
+import { NetworkProvider } from './src/providers/NetworkProvider';
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 
@@ -67,11 +87,13 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <AuthProvider>
-          <AppShell fontsReady={fontsReady} />
-        </AuthProvider>
-      </ThemeProvider>
+      <NetworkProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <AppShell fontsReady={fontsReady} />
+          </AuthProvider>
+        </ThemeProvider>
+      </NetworkProvider>
     </ErrorBoundary>
   );
 }

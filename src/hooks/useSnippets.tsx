@@ -77,16 +77,18 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     let filtered = allSnippets;
 
     if (activeCategory) {
-      filtered = filtered.filter(s => s.categoryId === activeCategory);
+      filtered = filtered.filter(s => s && s.categoryId === activeCategory);
     }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(
         s =>
-          s.title.toLowerCase().includes(q) ||
-          s.content.toLowerCase().includes(q) ||
-          s.categoryName?.toLowerCase().includes(q)
+          s && (
+            s.title.toLowerCase().includes(q) ||
+            s.content.toLowerCase().includes(q) ||
+            s.categoryName?.toLowerCase().includes(q)
+          )
       );
     }
 
@@ -312,20 +314,49 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const toggleFavorite = useCallback(async (id: string) => {
+    console.log('[useSnippets] toggleFavorite called for snippet ID:', id);
+    
     // Optimistic UI update so heart fills/unfills immediately on tap
-    setAllSnippets(prev =>
-      prev.map(s => (s.id === id ? { ...s, isFavorite: !s.isFavorite } : s))
-    );
+    setAllSnippets(prev => {
+      const snippet = prev.find(s => s && s.id === id);
+      if (snippet) {
+        console.log('[useSnippets] Optimistic update - current favorite state:', snippet.isFavorite);
+      }
+      return prev.map(s => {
+        if (s && s.id === id) {
+          const newState = !s.isFavorite;
+          console.log('[useSnippets] Optimistically setting isFavorite to:', newState);
+          return { ...s, isFavorite: newState };
+        }
+        return s;
+      });
+    });
+    
     try {
+      console.log('[useSnippets] Calling db.toggleFavorite for:', id);
       const newVal = await db.toggleFavorite(id);
+      console.log('[useSnippets] Database returned isFavorite value:', newVal);
+      
       setAllSnippets(prev =>
-        prev.map(s => (s.id === id ? { ...s, isFavorite: newVal } : s))
+        prev.map(s => {
+          if (s && s.id === id) {
+            console.log('[useSnippets] Confirming state with DB value:', newVal);
+            return { ...s, isFavorite: newVal };
+          }
+          return s;
+        })
       );
     } catch (err) {
       console.error('[useSnippets] toggleFavorite error:', err);
       // Revert on error
       setAllSnippets(prev =>
-        prev.map(s => (s.id === id ? { ...s, isFavorite: !s.isFavorite } : s))
+        prev.map(s => {
+          if (s && s.id === id) {
+            console.log('[useSnippets] Error occurred, reverting favorite state');
+            return { ...s, isFavorite: !s.isFavorite };
+          }
+          return s;
+        })
       );
     }
   }, []);

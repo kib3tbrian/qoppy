@@ -11,6 +11,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Heart } from 'lucide-react-native';
 
 import { SnippetCard } from '../components/cards/SnippetCard';
+import { EmptyState, OfflineBadge, LoadingState } from '../components/common/UIStates';
+import { AuthModal } from '../components/common/AuthModal';
+import { useAuth } from '../providers/AuthProvider';
+import { useNetwork } from '../providers/NetworkProvider';
 import { useSnippets } from '../hooks/useSnippets';
 import { Snippet, RootStackParamList } from '../types';
 import { textFont } from '../constants/typography';
@@ -24,8 +28,11 @@ const NUM_COLUMNS = 2;
 export const FavoritesScreen: React.FC = () => {
   const navigation = useNavigation<NavProp>();
   const { theme } = useTheme();
+  const { user } = useAuth();
+  const { isOffline, isSlow } = useNetwork();
+  const [authModalVisible, setAuthModalVisible] = React.useState(false);
   const { allSnippets, isLoading, copiedId, copySnippet, shareSnippet, toggleFavorite, deleteSnippet } = useSnippets();
-  const favorites = useMemo(() => allSnippets.filter(s => s.isFavorite), [allSnippets]);
+  const favorites = useMemo(() => allSnippets.filter(s => s && s.isFavorite), [allSnippets]);
   const gridFavorites = useMemo(() => padGridItems(favorites, NUM_COLUMNS), [favorites]);
 
   useLayoutEffect(() => {
@@ -33,6 +40,17 @@ export const FavoritesScreen: React.FC = () => {
       headerTitle: 'Sagent',
     });
   }, [navigation]);
+
+  const requireAuth = useCallback(
+    (action: () => void) => {
+      if (user?.isAnonymous) {
+        setAuthModalVisible(true);
+      } else {
+        action();
+      }
+    },
+    [user?.isAnonymous]
+  );
 
   const renderItem = useCallback(
     ({ item }: { item: GridListItem<Snippet> }) =>
@@ -42,29 +60,30 @@ export const FavoritesScreen: React.FC = () => {
         <SnippetCard
           snippet={item}
           isCopied={copiedId === item.id}
-          onCopy={copySnippet}
-          onShare={shareSnippet}
-          onFavorite={toggleFavorite}
-          onEdit={snippet => navigation.navigate('AddSnippet', { snippetId: snippet.id })}
-          onDelete={deleteSnippet}
+          onCopy={snippet => requireAuth(() => copySnippet(snippet))}
+          onShare={snippet => requireAuth(() => shareSnippet(snippet))}
+          onFavorite={id => requireAuth(() => toggleFavorite(id))}
+          onEdit={snippet => requireAuth(() => navigation.navigate('AddSnippet', { snippetId: snippet.id }))}
+          onDelete={id => requireAuth(() => deleteSnippet(id))}
         />
       ),
-    [copiedId, copySnippet, deleteSnippet, navigation, shareSnippet, toggleFavorite]
+    [copiedId, copySnippet, deleteSnippet, navigation, shareSnippet, toggleFavorite, requireAuth]
   );
 
   if (isLoading && allSnippets.length === 0) {
     return (
-      <View style={[styles.center, { backgroundColor: theme.background }]}>
-        <ActivityIndicator color={theme.primary} size="large" />
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <LoadingState message="Loading favorites..." />
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <OfflineBadge isOffline={isOffline} isSlow={isSlow} />
       <FlatList
         data={gridFavorites}
-        keyExtractor={item => item.id}
+        keyExtractor={item => isGridPlaceholderItem(item) ? `placeholder-${item.id}` : item.id}
         renderItem={renderItem}
         numColumns={NUM_COLUMNS}
         columnWrapperStyle={NUM_COLUMNS > 1 ? styles.row : undefined}
@@ -75,14 +94,17 @@ export const FavoritesScreen: React.FC = () => {
           </Text>
         ) : null}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Heart size={44} color={theme.primary} strokeWidth={2} />
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>No favorites yet</Text>
-            <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
-              Pin your most-sent messages here for one-tap sharing.
-            </Text>
-          </View>
+          <EmptyState
+            icon={<Heart size={44} color={theme.primary} strokeWidth={2} />}
+            title="No favorites yet"
+            subtitle="Pin your most-sent messages here for one-tap sharing."
+          />
         }
+      />
+
+      <AuthModal 
+        visible={authModalVisible} 
+        onClose={() => setAuthModalVisible(false)} 
       />
     </View>
   );

@@ -1,17 +1,17 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 
 interface AuthContextType {
   user: FirebaseAuthTypes.User | null;
   loading: boolean;
-  signInWithGoogleAndLink: () => Promise<void>;
+  signInWithGoogleAndLink: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  signInWithGoogleAndLink: async () => { },
+  signInWithGoogleAndLink: async () => false,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -22,7 +22,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     // Configure Google Sign-In
-    // NOTE: You MUST configure the webClientId with your Firebase project's Web Client ID from the Google Cloud Console.
     GoogleSignin.configure({
       webClientId: '364900923954-v0cgcc11v8f9bjg5fcvpqfdt9jpo3cmg.apps.googleusercontent.com',
     });
@@ -52,16 +51,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return subscriber;
   }, []);
 
-  const signInWithGoogleAndLink = async () => {
+  const signInWithGoogleAndLink = useCallback(async (): Promise<boolean> => {
     try {
-      // Check if your device supports Google Play
+      // Check if device supports Google Play
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
-      // Get the users ID token
+      // Get the user's ID token
       const response = await GoogleSignin.signIn();
       const idToken = response.data?.idToken;
 
       if (!idToken) {
+        // If type is cancelled, handle gracefully
+        if (response.type === 'cancelled') {
+          return false;
+        }
         throw new Error("No ID Token found from Google Sign In");
       }
 
@@ -95,11 +98,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Fallback: just sign in if no current user
         await auth().signInWithCredential(googleCredential);
       }
-    } catch (error) {
-      console.error("Google Sign-In Linking failed:", error);
+      return true;
+    } catch (error: any) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // user cancelled the login flow
+        return false;
+      }
+      console.error("Google Sign-In failed:", error);
       throw error;
     }
-  };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, signInWithGoogleAndLink }}>

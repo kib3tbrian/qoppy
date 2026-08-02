@@ -17,8 +17,12 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { SnippetCard } from '../components/cards/SnippetCard';
 import { SnippetCardSkeleton } from '../components/cards/SnippetCardSkeleton';
-import { CategoryChipBar } from '../components/common/CategoryChipBar';
 import { SearchBar } from '../components/common/SearchBar';
+import { AuthModal } from '../components/common/AuthModal';
+import { CategoryChipBar } from '../components/common/CategoryChipBar';
+import { EmptyState as UIEmptyState, OfflineBadge } from '../components/common/UIStates';
+import { useAuth } from '../providers/AuthProvider';
+import { useNetwork } from '../providers/NetworkProvider';
 import { useSnippets } from '../hooks/useSnippets';
 import { useCategories } from '../hooks/useCategories';
 import { useEntitlement } from '../hooks/useEntitlement';
@@ -38,6 +42,9 @@ export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NavProp>();
   const insets = useSafeAreaInsets();
   const { theme, mode } = useTheme();
+  const { user } = useAuth();
+  const { isOffline, isSlow } = useNetwork();
+  const [authModalVisible, setAuthModalVisible] = React.useState(false);
   const isFocused = useIsFocused();
   const {
     snippets,
@@ -114,13 +121,38 @@ export const HomeScreen: React.FC = () => {
     return () => { cancelled = true; };
   }, [isFocused, refreshShareUsage, refreshCategories]);
 
-  const handleEdit = useCallback((snippet: Snippet) => {
-    navigation.navigate('AddSnippet', { snippetId: snippet.id });
-  }, [navigation]);
+  const requireAuth = useCallback(
+    (action: () => void) => {
+      if (user?.isAnonymous) {
+        setAuthModalVisible(true);
+      } else {
+        action();
+      }
+    },
+    [user?.isAnonymous]
+  );
 
-  const handleDelete = useCallback(async (id: string) => {
-    await deleteSnippet(id);
-  }, [deleteSnippet]);
+  const handleEdit = useCallback((snippet: Snippet) => {
+    requireAuth(() => navigation.navigate('AddSnippet', { snippetId: snippet.id }));
+  }, [navigation, requireAuth]);
+
+  const handleDelete = useCallback((id: string) => {
+    requireAuth(async () => {
+      await deleteSnippet(id);
+    });
+  }, [deleteSnippet, requireAuth]);
+
+  const handleCopy = useCallback((snippet: Snippet) => {
+    requireAuth(() => copySnippet(snippet));
+  }, [copySnippet, requireAuth]);
+
+  const handleShare = useCallback((snippet: Snippet) => {
+    requireAuth(() => shareSnippet(snippet));
+  }, [shareSnippet, requireAuth]);
+
+  const handleFavorite = useCallback((id: string) => {
+    requireAuth(() => toggleFavorite(id));
+  }, [toggleFavorite, requireAuth]);
 
 
 
@@ -133,16 +165,16 @@ export const HomeScreen: React.FC = () => {
           <SnippetCard
             snippet={item}
             isCopied={copiedId === item.id}
-            onCopy={copySnippet}
-            onShare={shareSnippet}
-            onFavorite={toggleFavorite}
+            onCopy={handleCopy}
+            onShare={handleShare}
+            onFavorite={handleFavorite}
             onEdit={handleEdit}
             onDelete={handleDelete}
             searchQuery={searchQuery}
           />
         </Animated.View>
       ),
-    [copiedId, copySnippet, handleDelete, handleEdit, searchQuery, shareSnippet, toggleFavorite]
+    [copiedId, handleCopy, handleDelete, handleEdit, searchQuery, handleShare, handleFavorite]
   );
 
   const EmptyState = () => {
@@ -160,21 +192,12 @@ export const HomeScreen: React.FC = () => {
         : 'Start from a template or tap + to write your own.';
 
     return (
-      <View style={styles.empty}>
-        <Sparkles size={42} color={theme.primary} style={styles.emptyIcon} />
-        <Text style={[styles.emptyTitle, { color: theme.text }]}>{title}</Text>
-        <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>{subtitle}</Text>
-
-        {hasSearch && (
-          <TouchableOpacity
-            style={[styles.emptyButton, { backgroundColor: theme.primary }]}
-            onPress={() => setSearchQuery('')}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.emptyButtonText, { color: theme.onPrimary }]}>Clear search</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      <UIEmptyState
+        title={title}
+        subtitle={subtitle}
+        actionLabel={hasSearch ? 'Clear search' : undefined}
+        onAction={hasSearch ? () => setSearchQuery('') : undefined}
+      />
     );
   };
 
@@ -241,6 +264,8 @@ export const HomeScreen: React.FC = () => {
         <FreeSendIndicator />
       </View>
 
+      <OfflineBadge isOffline={isOffline} isSlow={isSlow} />
+
       <FlatList
         data={gridSnippets}
         keyExtractor={item => item.id}
@@ -274,7 +299,7 @@ export const HomeScreen: React.FC = () => {
             shadowColor: theme.primary,
           },
         ]}
-        onPress={() => navigation.navigate('AddSnippet', {})}
+        onPress={() => requireAuth(() => navigation.navigate('AddSnippet', {}))}
         activeOpacity={0.85}
       >
         <BlurView
@@ -328,6 +353,11 @@ export const HomeScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      <AuthModal 
+        visible={authModalVisible} 
+        onClose={() => setAuthModalVisible(false)} 
+      />
     </View>
   );
 };

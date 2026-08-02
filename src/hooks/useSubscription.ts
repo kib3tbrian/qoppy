@@ -227,10 +227,6 @@ export function useSubscription(skus: string[]): UseSubscriptionResult {
         ?? purchases[0];
 
       if (!targetPurchase) {
-        if (currentState.status === 'subscribed') {
-          await db.setPreference('premium_enabled', 'true');
-          return { active: true };
-        }
         return { active: false, error: 'No purchase found to verify.' };
       }
 
@@ -268,15 +264,9 @@ export function useSubscription(skus: string[]): UseSubscriptionResult {
         }
       }
 
-      // Fallback: If billingState says subscribed and purchase is valid
-      if (currentState.status === 'subscribed') {
-        await db.setPreference('premium_enabled', 'true');
-        if (!targetPurchase.isAcknowledged) {
-          await nativeBilling.acknowledgePurchase(targetPurchase.purchaseToken).catch(() => {});
-        }
-        return { active: true };
-      }
-
+      // Without a confirmed, server-verified subscription, do not grant Pro.
+      // Premium status is sourced exclusively from the Firestore entitlement
+      // (useEntitlement), never from on-device billing state.
       return { active: false, error: 'Subscription status could not be verified.' };
     } catch (err: any) {
       console.error('[Billing] verifyPurchase error:', err);

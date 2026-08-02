@@ -241,7 +241,11 @@ export const PaywallScreen: React.FC = () => {
     if (user?.isAnonymous) {
       setIsLinkingAuth(true);
       try {
-        await signInWithGoogleAndLink();
+        const success = await signInWithGoogleAndLink();
+        if (!success) {
+          setIsLinkingAuth(false);
+          return;
+        }
       } catch {
         Toast.show({ type: 'error', text1: 'Sign in failed. Please try again.' });
         setIsLinkingAuth(false);

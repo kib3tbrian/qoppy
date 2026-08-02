@@ -32,6 +32,7 @@ const CARD_GAP = 8;
 const PREVIEW_CHARACTER_LIMIT = 96;
 
 const getWordBoundaryPreview = (content: string) => {
+  if (!content) return '';
   const normalized = content.replace(/\s+/g, ' ').trim();
   if (normalized.length <= PREVIEW_CHARACTER_LIMIT) {
     return normalized;
@@ -108,7 +109,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
   const glowOpacity = useSharedValue(0);
   const copyProgress = useSharedValue(0);
   const heartScale = useSharedValue(1);
-  const previewContent = getWordBoundaryPreview(snippet.content);
+  const previewContent = getWordBoundaryPreview(snippet?.content ?? '');
 
   // ── Animation styles ────────────────────────────────────────────────────
 
@@ -143,32 +144,44 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
   }, []);
 
   const handleCopy = useCallback((event?: GestureResponderEvent) => {
-    event?.stopPropagation?.();
-    void Haptics.selectionAsync();
-    // Trigger copy feedback animation
-    copyProgress.value = withSequence(
-      withTiming(1, { duration: ANIMATION_DURATION.fast }),
-      withTiming(0, { duration: ANIMATION_DURATION.slow })
-    );
-    glowOpacity.value = withSequence(
-      withTiming(1, { duration: 100 }),
-      withTiming(0, { duration: 600 })
-    );
-    runOnJS(onCopy)(snippet);
+    try {
+      event?.stopPropagation?.();
+      void Haptics.selectionAsync();
+      // Trigger copy feedback animation
+      copyProgress.value = withSequence(
+        withTiming(1, { duration: ANIMATION_DURATION.fast }),
+        withTiming(0, { duration: ANIMATION_DURATION.slow })
+      );
+      glowOpacity.value = withSequence(
+        withTiming(1, { duration: 100 }),
+        withTiming(0, { duration: 600 })
+      );
+      runOnJS(onCopy)(snippet);
+    } catch (err) {
+      console.error('[SnippetCard] Copy error:', err);
+    }
   }, [snippet, onCopy]);
 
   const handleFavorite = useCallback((event?: GestureResponderEvent) => {
-    event?.stopPropagation?.();
-    void Haptics.selectionAsync();
-    heartScale.value = withSequence(
-      withTiming(1.35, { duration: 120 }),
-      withTiming(1, { duration: 120 })
-    );
-    onFavorite(snippet.id);
+    try {
+      event?.stopPropagation?.();
+      void Haptics.selectionAsync();
+      heartScale.value = withSequence(
+        withTiming(1.35, { duration: 120 }),
+        withTiming(1, { duration: 120 })
+      );
+      onFavorite(snippet.id);
+    } catch (err) {
+      console.error('[SnippetCard] Favorite error:', err);
+    }
   }, [snippet.id, onFavorite]);
 
   const handleShare = useCallback(() => {
-    onShare(snippet);
+    try {
+      onShare(snippet);
+    } catch (err) {
+      console.error('[SnippetCard] Share error:', err);
+    }
   }, [onShare, snippet]);
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -193,7 +206,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
       >
         <View style={styles.contentWrap}>
           {/* Category badge */}
-          {snippet.categoryName && (
+          {snippet?.categoryName ? (
             <View
               style={[
                 styles.categoryBadge,
@@ -207,7 +220,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
                 ]}
               />
               <HighlightedText
-                text={snippet.categoryName}
+                text={snippet.categoryName || ''}
                 query={searchQuery}
                 style={[
                   styles.categoryText,
@@ -217,11 +230,13 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
                 numberOfLines={1}
               />
             </View>
+          ) : (
+            <View style={styles.categoryBadgeSpacer} />
           )}
 
           {/* Title */}
           <HighlightedText
-            text={snippet.title}
+            text={snippet?.title ?? 'Untitled'}
             query={searchQuery}
             style={[styles.title, { color: theme.text }]}
             highlightColor={theme.primarySoft}
@@ -230,7 +245,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
 
           {/* Content preview */}
           <HighlightedText
-            text={previewContent}
+            text={previewContent ?? ''}
             query={searchQuery}
             style={[styles.content, { color: theme.textSecondary }]}
             highlightColor={theme.primarySoft}
@@ -360,6 +375,10 @@ const styles = StyleSheet.create({
     ...textFont('medium'),
     fontSize: 10,
     letterSpacing: 0.3,
+  },
+  categoryBadgeSpacer: {
+    height: 20,
+    marginBottom: 6,
   },
   title: {
     ...textFont('semibold'),

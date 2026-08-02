@@ -15,8 +15,16 @@ class DatabaseService {
   // ─── Initialisation ──────────────────────────────────────────────────────
 
   async init(): Promise<void> {
-    this.db = await SQLite.openDatabaseAsync(DB_NAME);
-    await this.runMigrations();
+    console.log('[Database] Initializing database:', DB_NAME);
+    try {
+      this.db = await SQLite.openDatabaseAsync(DB_NAME);
+      console.log('[Database] Database opened successfully, running migrations...');
+      await this.runMigrations();
+      console.log('[Database] Migrations complete, database ready');
+    } catch (error) {
+      console.error('[Database] Initialization failed:', error);
+      throw error;
+    }
   }
 
   private getDb(): SQLite.SQLiteDatabase {
@@ -65,9 +73,12 @@ class DatabaseService {
       );
     `);
 
-
-
-    await this.seedDefaultCategories();
+    // Only seed if not already done to prevent deleted categories from reappearing
+    const seeded = await this.getPreference('categories_seeded', 'false');
+    if (seeded === 'false') {
+      await this.seedDefaultCategories();
+      await this.setPreference('categories_seeded', 'true');
+    }
     await this.seedExampleMessages();
   }
 
@@ -234,14 +245,42 @@ class DatabaseService {
 
   async toggleFavorite(id: string): Promise<boolean> {
     const db = this.getDb();
+    console.log('[Database] toggleFavorite called for snippet ID:', id);
+    
     const row = await db.getFirstAsync<{ is_favorite: number }>(
       `SELECT is_favorite FROM snippets WHERE id = ?`, [id]
     );
-    const newVal = row?.is_favorite === 1 ? 0 : 1;
-    await db.runAsync(
+    
+    if (!row) {
+      console.error('[Database] ERROR: Snippet not found with ID:', id);
+      throw new Error(`Snippet with id ${id} not found`);
+    }
+    
+    const currentVal = row.is_favorite;
+    const newVal = currentVal === 1 ? 0 : 1;
+    console.log('[Database] toggleFavorite state change:', {
+      id,
+      currentVal,
+      newVal,
+      currentBoolean: currentVal === 1,
+      newBoolean: newVal === 1
+    });
+    
+    const result = await db.runAsync(
       `UPDATE snippets SET is_favorite = ?, updated_at = ? WHERE id = ?`,
       [newVal, Date.now(), id]
     );
+    
+    console.log('[Database] toggleFavorite UPDATE result:', {
+      changes: result.changes,
+      lastInsertRowId: result.lastInsertRowId
+    });
+    
+    if (result.changes === 0) {
+      console.warn('[Database] WARNING: No rows updated for snippet ID:', id);
+    }
+    
+    console.log('[Database] toggleFavorite returning:', newVal === 1);
     return newVal === 1;
   }
 
@@ -296,20 +335,37 @@ class DatabaseService {
 
   async deleteCategory(id: string): Promise<void> {
     const db = this.getDb();
+    console.log('[Database] deleteCategory called for:', id);
+    
     if (id === 'welcome') {
-      // 'Welcome' is the default category — it cannot be deleted.
+      console.log('[Database] BLOCKED: Cannot delete welcome category');
       return;
     }
+
+    console.log('[Database] Starting transaction to delete category and reassign snippets');
+    
     // Reassign orphaned snippets to 'welcome' before removing the category.
     // Ensure 'welcome' exists first so the foreign key reference is valid.
-    await db.runAsync(
-      `INSERT OR IGNORE INTO categories (id, name, color, icon) VALUES ('welcome', 'Welcome', '#8B5CF6', 'tag')`
-    );
-    await db.runAsync(
-      `UPDATE snippets SET category_id = 'welcome' WHERE category_id = ?`,
-      [id]
-    );
-    await db.runAsync(`DELETE FROM categories WHERE id = ?`, [id]);
+    // We use a transaction to ensure atomic reassignment and deletion.
+    await db.withTransactionAsync(async () => {
+      console.log('[Database] Step 1: Ensuring welcome category exists');
+      await db.runAsync(
+        `INSERT OR IGNORE INTO categories (id, name, color, icon, created_at) VALUES ('welcome', 'Welcome', '#8B5CF6', 'tag', 0)`
+      );
+      
+      console.log('[Database] Step 2: Reassigning snippets from', id, 'to welcome');
+      const reassignResult = await db.runAsync(
+        `UPDATE snippets SET category_id = 'welcome' WHERE category_id = ?`,
+        [id]
+      );
+      console.log('[Database] Reassigned', reassignResult.changes, 'snippets to welcome');
+      
+      console.log('[Database] Step 3: Deleting category', id);
+      const deleteResult = await db.runAsync(`DELETE FROM categories WHERE id = ?`, [id]);
+      console.log('[Database] Deleted', deleteResult.changes, 'category row(s)');
+    });
+    
+    console.log('[Database] Transaction complete - category deleted successfully');
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────

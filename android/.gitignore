@@ -14,3 +14,12 @@ local.properties
 
 # Bundle artifacts
 *.jsbundle
+
+# Tasks
+implementation_plan.artifact.md
+lessons.artifact.md
+task.artifact.md
+tasklist.artifact.md
+walkthrough.artifact.md
+todo.md
+

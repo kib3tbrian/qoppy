@@ -50,16 +50,16 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <View style={styles.iconCircle}>
             <BrandIcon size={72} />
           </View>
-          <Text style={styles.title}>Something went wrong</Text>
+          <Text style={styles.title}>Oops! Something went wrong</Text>
           <Text style={styles.subtitle}>
-            Please restart the app. If the issue persists, try reopening Sagent.
+            Sagent encountered an unexpected error. Don't worry, your messages are safe.
           </Text>
           <TouchableOpacity
             style={styles.reloadBtn}
             onPress={this.handleReload}
             activeOpacity={0.85}
           >
-            <Text style={styles.reloadBtnText}>Reload</Text>
+            <Text style={styles.reloadBtnText}>Reload App</Text>
           </TouchableOpacity>
         </View>
       );

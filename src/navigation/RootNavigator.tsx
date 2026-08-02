@@ -56,12 +56,15 @@ export const RootNavigator: React.FC<RootNavigatorProps> = ({ fontsReady }) => {
 
     (async () => {
       try {
+        console.log('[RootNavigator] Initializing database...');
         await db.init();
+        console.log('[RootNavigator] Database initialized successfully');
         const onboarded = await db.getPreference('onboarded');
         if (!isMounted) return;
         // Only check 'onboarded' — 'hasOnboarded' was a duplicate from an earlier version
         setInitialRoute(onboarded === 'true' ? 'Main' : 'Onboarding');
-      } catch {
+      } catch (error) {
+        console.error('[RootNavigator] Database initialization failed:', error);
         if (!isMounted) return;
         setInitialRoute('Onboarding');
       } finally {

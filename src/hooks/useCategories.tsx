@@ -52,9 +52,14 @@ export const CategoriesProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const deleteCategory = useCallback(async (id: string) => {
     if (id === 'welcome') return; // Welcome is the default category — never delete it
-    await db.deleteCategory(id);
-    // Update state directly instead of re-fetching so there's no flash/reappear
-    setCategories(prev => prev.filter(c => c.id !== id));
+    try {
+      await db.deleteCategory(id);
+      // Update state directly instead of re-fetching so there's no flash/reappear
+      setCategories(prev => prev.filter(c => c.id !== id));
+    } catch (err) {
+      console.error('[useCategories] Failed to delete category:', err);
+      throw err;
+    }
   }, []);
 
   const value = useMemo(() => ({

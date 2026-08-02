@@ -58,3 +58,14 @@ replay_pid*.log
 
 # TypeScript
 *.tsbuildinfo
+
+# Agent Artifacts
+implementation_plan.artifact.md
+lessons.artifact.md
+task.artifact.md
+tasklist.artifact.md
+walkthrough.artifact.md
+*.artifact.md
+todo.md
+tasks/
+.artifacts/

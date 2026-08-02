@@ -23,6 +23,8 @@ import { RootStackParamList } from '../types';
 import { db } from '../services/database';
 import { useTheme } from '../hooks/useTheme';
 import { textFont } from '../constants/typography';
+import { useAuth } from '../providers/AuthProvider';
+import { AuthModal } from '../components/common/AuthModal';
 
 type NavProp = NativeStackNavigationProp<RootStackParamList>;
 type RouteType = RouteProp<RootStackParamList, 'AddSnippet'>;
@@ -31,6 +33,9 @@ export const AddSnippetScreen: React.FC = () => {
   const navigation = useNavigation<NavProp>();
   const route = useRoute<RouteType>();
   const { theme } = useTheme();
+  const { user } = useAuth();
+  const [authModalVisible, setAuthModalVisible] = useState(false);
+  
   const { snippetId } = route.params ?? {};
   const isEditing = Boolean(snippetId);
 
@@ -81,8 +86,17 @@ export const AddSnippetScreen: React.FC = () => {
     }
   }, [categoryItems, selectedCategory]);
 
+  const requireAuth = (action: () => void) => {
+    if (user?.isAnonymous) {
+      setAuthModalVisible(true);
+    } else {
+      action();
+    }
+  };
+
   const handleDelete = () => {
-    Alert.alert('Delete Message', 'Are you sure?', [
+    requireAuth(() => {
+      Alert.alert('Delete Message', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -95,6 +109,7 @@ export const AddSnippetScreen: React.FC = () => {
         },
       },
     ]);
+    });
   };
 
   useLayoutEffect(() => {
@@ -111,48 +126,52 @@ export const AddSnippetScreen: React.FC = () => {
   }, [isEditing, navigation, theme.danger, handleDelete]);
 
   const handleSave = async () => {
-    const isTitleMissing = !title.trim();
-    const isContentMissing = !content.trim();
+    requireAuth(async () => {
+      const isTitleMissing = !title.trim();
+      const isContentMissing = !content.trim();
 
-    setTitleError('');
-    setContentError('');
+      setTitleError('');
+      setContentError('');
 
-    if (isTitleMissing && isContentMissing) {
-      setTitleError('Please add a title and message before saving');
-      setContentError('Please add a title and message before saving');
-      return;
-    }
-
-    if (isTitleMissing) {
-      setTitleError('Please add a title before saving');
-      return;
-    }
-
-    if (isContentMissing) {
-      setContentError('Please add a message before saving');
-      return;
-    }
-
-    if (hasCardNumber) {
-      Alert.alert('Sensitive data blocked', 'Do not store full credit card numbers in Sagent.');
-      return;
-    }
-    setIsSaving(true);
-    try {
-      if (isEditing && snippetId) {
-        await updateSnippet({ id: snippetId, title: title.trim(), content: content.trim(), categoryId: selectedCategory });
-      } else {
-        await createSnippet({ title: title.trim(), content: content.trim(), categoryId: selectedCategory });
+      if (isTitleMissing && isContentMissing) {
+        setTitleError('Please add a title and message before saving');
+        setContentError('Please add a title and message before saving');
+        return;
       }
-      navigation.goBack();
-    } catch (error: any) {
-      Alert.alert(
-        'Unable to save message',
-        error?.message ?? 'Please try saving this message again.'
-      );
-    } finally {
-      setIsSaving(false);
-    }
+
+      if (isTitleMissing) {
+        setTitleError('Please add a title before saving');
+        return;
+      }
+
+      if (isContentMissing) {
+        setContentError('Please add a message before saving');
+        return;
+      }
+
+      if (hasCardNumber) {
+        Alert.alert('Sensitive data blocked', 'Do not store full credit card numbers in Sagent.');
+        return;
+      }
+
+      setIsSaving(true);
+      try {
+        if (isEditing && snippetId) {
+          await updateSnippet({ id: snippetId, title: title.trim(), content: content.trim(), categoryId: selectedCategory });
+        } else {
+          await createSnippet({ title: title.trim(), content: content.trim(), categoryId: selectedCategory });
+        }
+        navigation.goBack();
+      } catch (error: any) {
+        console.error('[AddSnippet] Save error:', error);
+        Alert.alert(
+          'Unable to save message',
+          'We encountered an issue while saving your message. Please check your connection and try again.'
+        );
+      } finally {
+        setIsSaving(false);
+      }
+    });
   };
 
   return (

@@ -1,4 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import { google } from 'googleapis';
 import * as admin from 'firebase-admin';
 import { OAuth2Client } from 'google-auth-library';
@@ -75,6 +78,29 @@ const oAuth2Client = new OAuth2Client();
 const app = express();
 app.use(express.json());
 
+// ── Security middlewares ─────────────────────────────────────────────
+// Trust the proxy chain (Railway/Node front) so rate-limit and IP checks see
+// the real client address rather than the proxy IP.
+app.set('trust proxy', 1);
+
+// CORS allowlist. A React Native client is not CORS-bound, so a restrictive
+// allowlist (set via CORS_ORIGINS, comma-separated) is preferred in production.
+const corsOptions: cors.CorsOptions = {
+  origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : true,
+  credentials: true,
+};
+app.use(cors(corsOptions));
+
+app.use(helmet());
+
+// Basic rate limiting to blunt brute-force / abuse of the purchase endpoint.
+app.use(rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+}));
+
 // ==========================================
 // HEALTH CHECK ENDPOINTS
 // ==========================================
@@ -123,30 +149,32 @@ async function verifyPubSubRequest(req: Request): Promise<boolean> {
     }
   }
 
-  // Option B: OIDC JWT verification in Authorization header
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const idToken = authHeader.split('Bearer ')[1];
-    try {
-      const ticket = await oAuth2Client.verifyIdToken({
-        idToken,
-        audience: PUBSUB_AUDIENCE || undefined,
-      });
-      const payload = ticket.getPayload();
-      if (payload && (payload.iss === 'accounts.google.com' || payload.iss === 'https://accounts.google.com')) {
-        return true;
+  // Option B: OIDC JWT verification in Authorization header.
+  // Only honour the audience check when an audience is configured —
+  // without it the JWT can't be bound to this project, so it is rejected.
+  if (PUBSUB_AUDIENCE) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const idToken = authHeader.split('Bearer ')[1];
+      try {
+        const ticket = await oAuth2Client.verifyIdToken({
+          idToken,
+          audience: PUBSUB_AUDIENCE,
+        });
+        const payload = ticket.getPayload();
+        if (payload && (payload.iss === 'accounts.google.com' || payload.iss === 'https://accounts.google.com')) {
+          return true;
+        }
+      } catch (err: any) {
+        console.warn('[Pub/Sub Auth] Token verification failed:', err.message);
       }
-    } catch (err: any) {
-      console.warn('[Pub/Sub Auth] Token verification failed:', err.message);
     }
   }
 
-  // If no strict audience or secret token configured, log warning and allow for transition
+  // Fail closed: without a configured audience or secret token, do not trust the request.
   if (!PUBSUB_AUDIENCE && !PUBSUB_SECRET_TOKEN) {
-    console.warn('[Pub/Sub Auth] Neither PUBSUB_VERIFICATION_AUDIENCE nor PUBSUB_SECRET_TOKEN set. Proceeding without JWT verification.');
-    return true;
+    console.warn('[Pub/Sub Auth] Neither PUBSUB_VERIFICATION_AUDIENCE nor PUBSUB_SECRET_TOKEN set. Rejecting request.');
   }
-
   return false;
 }
 
@@ -155,15 +183,14 @@ async function verifyPubSubRequest(req: Request): Promise<boolean> {
 // ==========================================
 app.post('/api/verify-purchase', verifyFirebaseToken, async (req: Request, res: Response) => {
   try {
-    const { uid, purchaseToken, productId } = req.body || {};
-    const authenticatedUid = (req as any).uid;
+    // UID is taken ONLY from the verified Firebase ID token (set by
+    // verifyFirebaseToken). The body uid is intentionally ignored to prevent
+    // UID spoofing / entitlement takeover for another user.
+    const uid = (req as any).uid;
+    const { purchaseToken, productId } = req.body || {};
 
-    if (!purchaseToken || !productId || !uid) {
-      return res.status(400).json({ error: 'Missing required fields: uid, purchaseToken, productId' });
-    }
-
-    if (uid !== authenticatedUid) {
-      return res.status(403).json({ error: 'Forbidden: UID mismatch' });
+    if (!purchaseToken || !productId) {
+      return res.status(400).json({ error: 'Missing required fields: purchaseToken, productId' });
     }
 
     // Call Google Play Developer API to verify the subscription
@@ -247,16 +274,18 @@ const NOTIFICATION_TYPES: Record<number, string> = {
 // ENDPOINT: RTDN HANDLER (POST /rtdn & POST /api/rtdn-webhook)
 // ==========================================
 const handleRtdnWebhook = async (req: Request, res: Response) => {
-  // Always acknowledge Pub/Sub quickly to prevent retries
+  // Verify the Pub/Sub request BEFORE any processing. Fail closed (401)
+  // so unverified or unconfigured requests are never handled.
+  const isValid = await verifyPubSubRequest(req);
+  if (!isValid) {
+    console.error('[RTDN] Unauthorized request received on RTDN webhook.');
+    return res.status(401).send('Unauthorized');
+  }
+
+  // Acknowledge Pub/Sub quickly to prevent retries, then process asynchronously.
   res.status(200).send('OK');
 
   try {
-    const isValid = await verifyPubSubRequest(req);
-    if (!isValid) {
-      console.error('[RTDN] Unauthorized request received on RTDN webhook.');
-      return;
-    }
-
     const { message } = req.body || {};
     if (!message || !message.data) {
       console.warn('[RTDN] Received request without message.data:', req.body);

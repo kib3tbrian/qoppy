@@ -25,14 +25,17 @@ import {
   X,
   Save,
   Tag,
+  LoaderCircle,
 } from 'lucide-react-native';
-import auth from '@react-native-firebase/auth';
 import { db } from '../services/database';
 import { textFont } from '../constants/typography';
 import { RootStackParamList } from '../types';
 import { useTheme } from '../hooks/useTheme';
 import { useSnippets } from '../hooks/useSnippets';
 import { useEntitlement } from '../hooks/useEntitlement';
+import { OfflineBadge } from '../components/common/UIStates';
+import { useNetwork } from '../providers/NetworkProvider';
+import { useAuth } from '../providers/AuthProvider';
 
 // Read version from app.json at build time — single source of truth.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -87,9 +90,31 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NavProp>();
   const { theme } = useTheme();
-  const { isPremium } = useSnippets();
-  const { isPro } = useEntitlement();
-  const userEmail = auth().currentUser?.email;
+  const { user, loading: authLoading } = useAuth();
+  const { isPro, plan, loading: entitlementLoading } = useEntitlement();
+  const { isOffline, isSlow } = useNetwork();
+
+  // Determine if user has signed in with a real account (Google)
+  // A user is considered "signed in" if they have email/displayName from a provider
+  const hasGoogleAccount = user && !user.isAnonymous && user.email;
+  const userEmail = user?.email || user?.displayName;
+  const userDisplayName = user?.displayName;
+  const isLoading = authLoading || entitlementLoading;
+
+  // Get first letter for avatar - prioritize displayName, then email
+  const getAvatarLetter = () => {
+    if (userDisplayName) return userDisplayName.charAt(0).toUpperCase();
+    if (userEmail) return userEmail.charAt(0).toUpperCase();
+    return '?';
+  };
+
+  // Get display text - prioritize displayName, then email, then fallback
+  const getDisplayText = () => {
+    if (userDisplayName) return userDisplayName;
+    if (userEmail) return userEmail;
+    return 'Guest Account';
+  };
+
   const [hapticEnabled, setHapticEnabled] = useState(true);
   const [showHowTo, setShowHowTo] = useState(false);
 
@@ -123,37 +148,57 @@ export const SettingsScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <OfflineBadge isOffline={isOffline} isSlow={isSlow} />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <TouchableOpacity
-          style={[
-            styles.premiumHero,
-            {
-              backgroundColor: isPro ? theme.surface : theme.primary,
-              borderColor: isPro ? theme.border : 'transparent',
-              borderWidth: isPro ? 1 : 0,
-              shadowColor: isPro ? 'transparent' : theme.primary,
-            },
-          ]}
-          onPress={() => navigation.navigate('Paywall', { source: 'settings' })}
-          activeOpacity={0.88}
-        >
-          <View style={styles.premiumHeader}>
-            <Crown size={26} color={isPro ? theme.primary : theme.onPrimary} fill={isPro ? theme.primary : 'transparent'} />
-            <Text style={[styles.premiumTitle, { color: isPro ? theme.text : theme.onPrimary }]}>
-              {isPro ? 'You are now in Premium' : 'Upgrade to Pro'}
-            </Text>
-          </View>
-          {isPro && userEmail && (
-            <Text style={[styles.userEmailText, { color: theme.primary }]}>
-              Subscribed as {userEmail}
-            </Text>
+        <View style={[styles.accountSection, { backgroundColor: theme.primary, borderColor: theme.primary }]}>
+          {isLoading ? (
+            <View style={styles.loaderWrap}>
+              <LoaderCircle size={24} color={theme.onPrimary} />
+              <Text style={[styles.loaderText, { color: `${theme.onPrimary}CC` }]}>Updating status...</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.accountInfo}>
+                <View style={[styles.avatar, { backgroundColor: `${theme.onPrimary}30` }]}>
+                  <Text style={[styles.avatarText, { color: theme.onPrimary }]}>
+                    {getAvatarLetter()}
+                  </Text>
+                </View>
+                <View style={styles.accountText}>
+                  <Text style={[styles.emailLabel, { color: theme.onPrimary }]} numberOfLines={1} ellipsizeMode="tail">
+                    {getDisplayText()}
+                  </Text>
+                  <View style={styles.statusRow}>
+                    <View style={[styles.statusBadge, { backgroundColor: `${theme.onPrimary}25` }]}>
+                      <Text style={[styles.statusText, { color: theme.onPrimary }]}>
+                        {isPro ? `Premium (${plan ?? 'Pro'})` : 'Free Version'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.upgradeRow, { borderTopColor: `${theme.onPrimary}30` }]}
+                onPress={() => navigation.navigate('Paywall', { source: 'settings' })}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.upgradeIconCircle, { backgroundColor: `${theme.onPrimary}25` }]}>
+                  <Crown size={18} color={theme.onPrimary} strokeWidth={2} fill={isPro ? theme.onPrimary : 'transparent'} />
+                </View>
+                <View style={styles.upgradeText}>
+                  <Text style={[styles.upgradeLabel, { color: theme.onPrimary }]}>
+                    {isPro ? "Manage Subscription" : "Upgrade to Premium"}
+                  </Text>
+                  <Text style={[styles.upgradeSublabel, { color: `${theme.onPrimary}CC` }]}>
+                    {isPro ? "View plan details or change options" : "Get unlimited sends and remove watermarks"}
+                  </Text>
+                </View>
+                <ChevronRight size={16} color={`${theme.onPrimary}AA`} />
+              </TouchableOpacity>
+            </>
           )}
-          <Text style={[styles.premiumSub, { color: isPro ? theme.textSecondary : `${theme.onPrimary}DD` }]}>
-            {isPro
-              ? 'You have full access to Sagent Pro features. Tap to view your plan details or switch options.'
-              : 'Get the full power of Sagent for your business or life. Save 4+ hours every month.'}
-          </Text>
-        </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={[styles.shareCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
@@ -290,6 +335,16 @@ export const SettingsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 60 },
+  accountSection: {
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20,
+    marginBottom: 24,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
+  },
   premiumHero: {
     borderRadius: 24,
     padding: 20,
@@ -401,6 +456,80 @@ const styles = StyleSheet.create({
   howToItemTitle: { ...textFont('semibold'), fontSize: 15, marginBottom: 4 },
   howToItemDescription: { ...textFont('regular'), fontSize: 13, lineHeight: 19 },
   version: { ...textFont('regular'), textAlign: 'center', fontSize: 13, marginTop: 8 },
+  accountInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    ...textFont('bold'),
+    fontSize: 22,
+  },
+  accountText: {
+    flex: 1,
+    gap: 6,
+  },
+  emailLabel: {
+    ...textFont('bold'),
+    fontSize: 16,
+  },
+  statusRow: {
+    flexDirection: 'row',
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusText: {
+    ...textFont('semibold'),
+    fontSize: 12,
+  },
+  upgradeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
+  upgradeIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  upgradeText: {
+    flex: 1,
+  },
+  upgradeLabel: {
+    ...textFont('semibold'),
+    fontSize: 15,
+    marginBottom: 2,
+  },
+  upgradeSublabel: {
+    ...textFont('regular'),
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  loaderWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    gap: 12,
+  },
+  loaderText: {
+    ...textFont('medium'),
+    fontSize: 14,
+  },
 });
 
 export default SettingsScreen;
