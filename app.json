@@ -2,7 +2,7 @@
   "expo": {
     "name": "Sagent",
     "slug": "sagent",
-    "version": "1.1.4",
+    "version": "1.1.5",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#EDE9F6",
@@ -27,7 +27,7 @@
       },
       "backgroundColor": "#EDE9F6",
       "package": "com.sagent.app",
-      "versionCode": 12,
+      "versionCode": 13,
       "permissions": []
     },
     "splash": {
