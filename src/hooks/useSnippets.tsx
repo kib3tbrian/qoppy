@@ -14,7 +14,7 @@ import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import nativeBilling from '../services/nativeBilling';
 import { db } from '../services/database';
-import { Snippet, SnippetInsert, SnippetUpdate } from '../types';
+import { Snippet, SnippetInsert, SnippetUpdate, SearchFilters } from '../types';
 import { useRatingPrompt } from './useRatingPrompt';
 import { useEntitlement } from './useEntitlement';
 
@@ -54,6 +54,8 @@ interface UseSnippetsReturn {
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   activeCategory: string | null;
+  searchFilters: SearchFilters;
+  setSearchFilters: (filters: SearchFilters) => void;
 }
 
 const SnippetsContext = createContext<UseSnippetsReturn | null>(null);
@@ -66,6 +68,11 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    showFavoritesOnly: false,
+    dateRange: 'all',
+    categoryFilter: null,
+  });
   const [premiumPromptVisible, setPremiumPromptVisible] = useState(false);
   const [premiumPromptReason, setPremiumPromptReason] = useState<PremiumPromptReason>('share-limit');
   const isPremium = isPro;
@@ -76,10 +83,39 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const snippets = useMemo(() => {
     let filtered = allSnippets;
 
+    // Apply search filters
+    if (searchFilters.showFavoritesOnly) {
+      filtered = filtered.filter(s => s && s.isFavorite);
+    }
+
+    if (searchFilters.categoryFilter) {
+      filtered = filtered.filter(s => s && s.categoryId === searchFilters.categoryFilter);
+    }
+
+    if (searchFilters.dateRange !== 'all') {
+      const now = Date.now();
+      const dayMs = 24 * 60 * 60 * 1000;
+      let cutoff = now;
+      
+      if (searchFilters.dateRange === 'today') {
+        cutoff = now - dayMs;
+      } else if (searchFilters.dateRange === 'week') {
+        cutoff = now - (7 * dayMs);
+      } else if (searchFilters.dateRange === 'month') {
+        cutoff = now - (30 * dayMs);
+      }
+      
+      filtered = filtered.filter(s => 
+        s && (s.lastUsedAt && s.lastUsedAt >= cutoff || s.createdAt >= cutoff)
+      );
+    }
+
+    // Apply category filter (from chip bar)
     if (activeCategory) {
       filtered = filtered.filter(s => s && s.categoryId === activeCategory);
     }
 
+    // Apply search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -93,7 +129,7 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     return filtered;
-  }, [activeCategory, allSnippets, searchQuery]);
+  }, [activeCategory, allSnippets, searchQuery, searchFilters]);
 
   useEffect(() => () => {
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
@@ -226,6 +262,15 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const copySnippet = useCallback(async (snippet: Snippet) => {
     try {
+      const premium = await isPremiumEnabled();
+      
+      // Check limit for non-premium users (copy counts as a send)
+      if (!premium && monthlyShareCount >= FREE_SHARE_LIMIT) {
+        setPremiumPromptReason('share-limit');
+        setPremiumPromptVisible(true);
+        return;
+      }
+      
       await Clipboard.setStringAsync(snippet.content);
       await runHaptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
       await db.incrementUseCount(snippet.id);
@@ -241,12 +286,20 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         )
       );
 
+      // Increment send count for free users (copy counts as a send)
+      if (!premium) {
+        const nextCount = monthlyShareCount + 1;
+        const nextUsage = { count: nextCount, month: now.getMonth() + 1, year: now.getFullYear() };
+        setMonthlyShareCount(Math.min(nextCount, FREE_SHARE_LIMIT));
+        void saveMonthlyShareCount(nextUsage);
+      }
+
       // Increment global usage for rating prompt
       await incrementUsage();
     } catch (e: any) {
       setError(e.message ?? 'Failed to copy to clipboard');
     }
-  }, [incrementUsage, runHaptic]);
+  }, [incrementUsage, isPremiumEnabled, monthlyShareCount, runHaptic, saveMonthlyShareCount]);
 
   const shareSnippet = useCallback(async (snippet: Snippet) => {
     try {
@@ -394,6 +447,8 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     searchQuery,
     setSearchQuery,
     activeCategory,
+    searchFilters,
+    setSearchFilters,
   }), [
     activeCategory,
     copiedId,
@@ -405,6 +460,7 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     filterByCategory,
     searchQuery,
     setSearchQuery,
+    searchFilters,
     error,
     isPremium,
     isLoading,
@@ -414,6 +470,7 @@ export const SnippetsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     refresh,
     refreshShareUsage,
     snippets,
+    allSnippets,
     shareSnippet,
     toggleFavorite,
     updateSnippet,

@@ -17,7 +17,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { SnippetCard } from '../components/cards/SnippetCard';
 import { SnippetCardSkeleton } from '../components/cards/SnippetCardSkeleton';
-import { SearchBar } from '../components/common/SearchBar';
+import { EnhancedSearchBar } from '../components/common/EnhancedSearchBar';
 import { AuthModal } from '../components/common/AuthModal';
 import { CategoryChipBar } from '../components/common/CategoryChipBar';
 import { EmptyState as UIEmptyState, OfflineBadge } from '../components/common/UIStates';
@@ -59,6 +59,8 @@ export const HomeScreen: React.FC = () => {
     activeCategory,
     searchQuery,
     setSearchQuery,
+    searchFilters,
+    setSearchFilters,
     premiumPromptVisible,
     isPremium,
     monthlyShareCount,
@@ -254,7 +256,14 @@ export const HomeScreen: React.FC = () => {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.headerWrapper}>
-        <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search messages..." />
+        <EnhancedSearchBar 
+          value={searchQuery} 
+          onChange={setSearchQuery} 
+          placeholder="Search messages..."
+          filters={searchFilters}
+          onFiltersChange={setSearchFilters}
+          categories={categories}
+        />
         <CategoryChipBar
           categories={visibleCategories}
           activeId={activeCategoryId}

@@ -43,6 +43,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } else {
         // Covers both the new anonymous user and any subsequent sign-in/link.
+        // Firebase Auth automatically persists the session, so on app restart
+        // this branch will be hit with the existing user (anonymous or linked).
         setUser(currentUser);
         setLoading(false);
       }

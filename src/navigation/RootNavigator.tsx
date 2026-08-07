@@ -12,6 +12,8 @@ import OnboardingScreen from '../screens/OnboardingScreen';
 import AddSnippetScreen from '../screens/AddSnippetScreen';
 import PaywallScreen from '../screens/PaywallScreen';
 import ManageCategoriesScreen from '../screens/ManageCategoriesScreen';
+import StatisticsScreen from '../screens/StatisticsScreen';
+import TemplatesLibraryScreen from '../screens/TemplatesLibraryScreen';
 import MainTabNavigator from './MainTabNavigator';
 import { SnippetsProvider } from '../hooks/useSnippets';
 import { CategoriesProvider } from '../hooks/useCategories';
@@ -138,6 +140,16 @@ export const RootNavigator: React.FC<RootNavigatorProps> = ({ fontsReady }) => {
               name="ManageCategories"
               component={ManageCategoriesScreen}
               options={{ title: 'Categories' }}
+            />
+            <Stack.Screen
+              name="Statistics"
+              component={StatisticsScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="TemplatesLibrary"
+              component={TemplatesLibraryScreen}
+              options={{ headerShown: false }}
             />
           </Stack.Navigator>
         </NavigationContainer>

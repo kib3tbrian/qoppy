@@ -26,6 +26,9 @@ import {
   Save,
   Tag,
   LoaderCircle,
+  LogIn,
+  BarChart3,
+  Sparkles,
 } from 'lucide-react-native';
 import { db } from '../services/database';
 import { textFont } from '../constants/typography';
@@ -90,7 +93,7 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NavProp>();
   const { theme } = useTheme();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signInWithGoogleAndLink } = useAuth();
   const { isPro, plan, loading: entitlementLoading } = useEntitlement();
   const { isOffline, isSlow } = useNetwork();
 
@@ -117,6 +120,7 @@ export const SettingsScreen: React.FC = () => {
 
   const [hapticEnabled, setHapticEnabled] = useState(true);
   const [showHowTo, setShowHowTo] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   const loadPreferences = useCallback(() => {
     db.getPreference('haptic', 'true').then(v => setHapticEnabled(v === 'true'));
@@ -144,6 +148,20 @@ export const SettingsScreen: React.FC = () => {
 
   const handleShowHowToUse = () => {
     setShowHowTo(true);
+  };
+
+  const handleSignIn = async () => {
+    setIsSigningIn(true);
+    try {
+      const success = await signInWithGoogleAndLink();
+      if (success) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.error('[Settings] Sign-in error:', error);
+    } finally {
+      setIsSigningIn(false);
+    }
   };
 
   return (
@@ -215,13 +233,57 @@ export const SettingsScreen: React.FC = () => {
           <ChevronRight size={18} color={theme.textMuted} />
         </TouchableOpacity>
 
+        {/* Show Sign-In button only for guest users (anonymous accounts) */}
+        {!hasGoogleAccount && !isLoading && (
+          <TouchableOpacity
+            style={[styles.signInCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            onPress={handleSignIn}
+            activeOpacity={0.88}
+            disabled={isSigningIn}
+          >
+            <View style={[styles.signInIconWrap, { backgroundColor: theme.successSoft }]}>
+              {isSigningIn ? (
+                <LoaderCircle size={20} color={theme.success} />
+              ) : (
+                <LogIn size={20} color={theme.success} />
+              )}
+            </View>
+            <View style={styles.shareTextWrap}>
+              <Text style={[styles.shareTitle, { color: theme.text }]}>
+                {isSigningIn ? 'Signing in...' : 'Sign in with Google'}
+              </Text>
+              <Text style={[styles.shareSub, { color: theme.textSecondary }]}>
+                Link your account to save your data and sync across devices
+              </Text>
+            </View>
+            <ChevronRight size={18} color={theme.textMuted} />
+          </TouchableOpacity>
+        )}
+
         <Section title="Usage">
+          <Row
+            icon={BarChart3}
+            iconColor={theme.primary}
+            label="My Statistics"
+            sublabel="View your usage stats and insights"
+            onPress={() => navigation.navigate('Statistics')}
+          />
           <Row
             icon={Info}
             iconColor={theme.primary}
             label="How to use Sagent"
             sublabel="Quick tips for sharing, copying, editing, and organizing"
             onPress={handleShowHowToUse}
+          />
+        </Section>
+
+        <Section title="Templates">
+          <Row
+            icon={Sparkles}
+            iconColor="#8B5CF6"
+            label="Professional Templates"
+            sublabel="Import ready-made templates for various industries"
+            onPress={() => navigation.navigate('TemplatesLibrary')}
           />
         </Section>
 
@@ -383,7 +445,23 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 24,
   },
+  signInCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+    gap: 12,
+    marginBottom: 24,
+  },
   shareIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signInIconWrap: {
     width: 42,
     height: 42,
     borderRadius: 14,
