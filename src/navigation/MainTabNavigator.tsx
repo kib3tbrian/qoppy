@@ -28,7 +28,14 @@ const TAB_ICONS: Record<string, React.ComponentType<any>> = {
   Settings,
 };
 
-const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+// Lazily created to avoid Hermes/Reanimated initialization order issues in release builds
+let _AnimatedTouchableOpacity: ReturnType<typeof Animated.createAnimatedComponent<typeof TouchableOpacity>> | null = null;
+const getAnimatedTouchableOpacity = () => {
+  if (!_AnimatedTouchableOpacity) {
+    _AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+  }
+  return _AnimatedTouchableOpacity;
+};
 
 interface TabItemProps {
   label: string;
@@ -41,6 +48,7 @@ interface TabItemProps {
 const TabItem: React.FC<TabItemProps> = ({ label, isFocused, onPress, icon: Icon, routeName }) => {
   const { theme, mode } = useTheme();
   const activeProgress = useSharedValue(isFocused ? 1 : 0);
+  const AnimatedTouchableOpacity = getAnimatedTouchableOpacity();
 
   React.useEffect(() => {
     activeProgress.value = withTiming(isFocused ? 1 : 0, {

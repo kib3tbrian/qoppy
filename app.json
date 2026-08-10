@@ -2,7 +2,7 @@
   "expo": {
     "name": "Sagent",
     "slug": "sagent",
-    "version": "1.1.5",
+    "version": "1.2.0",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#EDE9F6",
@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.sagent.app",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Not used.",
         "UIBackgroundModes": []
@@ -27,7 +27,7 @@
       },
       "backgroundColor": "#EDE9F6",
       "package": "com.sagent.app",
-      "versionCode": 13,
+      "versionCode": 14,
       "permissions": []
     },
     "splash": {

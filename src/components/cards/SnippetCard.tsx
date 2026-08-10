@@ -92,7 +92,14 @@ interface SnippetCardProps {
   searchQuery?: string;
 }
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+// Lazily created to avoid Hermes/Reanimated initialization order issues in release builds
+let _AnimatedPressable: ReturnType<typeof Animated.createAnimatedComponent<typeof Pressable>> | null = null;
+const getAnimatedPressable = () => {
+  if (!_AnimatedPressable) {
+    _AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+  }
+  return _AnimatedPressable;
+};
 
 export const SnippetCard: React.FC<SnippetCardProps> = ({
   snippet,
@@ -105,6 +112,7 @@ export const SnippetCard: React.FC<SnippetCardProps> = ({
   searchQuery,
 }) => {
   const { theme, mode } = useTheme();
+  const AnimatedPressable = getAnimatedPressable();
   const scale = useSharedValue(1);
   const glowOpacity = useSharedValue(0);
   const copyProgress = useSharedValue(0);
