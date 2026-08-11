@@ -63,7 +63,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const idToken = response.data?.idToken;
 
       if (!idToken) {
-        // If type is cancelled, handle gracefully
         if (response.type === 'cancelled') {
           return false;
         }
@@ -77,7 +76,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (auth().currentUser) {
         try {
           await auth().currentUser!.linkWithCredential(googleCredential);
-          // The user is now linked! uid remains the same.
+          // Reload to get fresh email/displayName from the provider
+          await auth().currentUser!.reload();
+          const refreshed = auth().currentUser;
+          setUser(refreshed);
         } catch (linkError: any) {
           const code = linkError?.code ?? linkError?.userInfo?.code ?? '';
           if (
@@ -85,25 +87,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             code === 'auth/provider-already-linked' ||
             code === 'auth/email-already-in-use'
           ) {
-            // The Google account is already associated with another Firebase
-            // user (e.g. after an app reinstall the anonymous UID changed).
-            // Fall back to a full sign-in which adopts the existing account.
-            console.warn(
-              `[Auth] linkWithCredential failed (${code}). Falling back to signInWithCredential.`,
-            );
-            await auth().signInWithCredential(googleCredential);
+            // The Google account is already tied to another Firebase user.
+            // Sign in directly — this adopts the existing account.
+            console.warn(`[Auth] linkWithCredential failed (${code}). Falling back to signInWithCredential.`);
+            const result = await auth().signInWithCredential(googleCredential);
+            await result.user.reload();
+            setUser(auth().currentUser);
           } else {
             throw linkError;
           }
         }
       } else {
-        // Fallback: just sign in if no current user
-        await auth().signInWithCredential(googleCredential);
+        const result = await auth().signInWithCredential(googleCredential);
+        await result.user.reload();
+        setUser(auth().currentUser);
       }
       return true;
     } catch (error: any) {
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        // user cancelled the login flow
+      if (
+        error.code === statusCodes.SIGN_IN_CANCELLED ||
+        error.code === 'SIGN_IN_CANCELLED'
+      ) {
         return false;
       }
       console.error("Google Sign-In failed:", error);

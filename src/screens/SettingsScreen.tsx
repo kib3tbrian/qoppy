@@ -28,7 +28,8 @@ import {
   LoaderCircle,
   LogIn,
   BarChart3,
-  Sparkles,
+  AlertCircle,
+  User,
 } from 'lucide-react-native';
 import { db } from '../services/database';
 import { textFont } from '../constants/typography';
@@ -98,18 +99,11 @@ export const SettingsScreen: React.FC = () => {
   const { isOffline, isSlow } = useNetwork();
 
   // Determine if user has signed in with a real account (Google)
-  // A user is considered "signed in" if they have email/displayName from a provider
   const hasGoogleAccount = user && !user.isAnonymous && user.email;
-  const userEmail = user?.email || user?.displayName;
-  const userDisplayName = user?.displayName;
+  // Reload user to get fresh email/displayName after linking
+  const userEmail = user?.email ?? user?.providerData?.[0]?.email ?? null;
+  const userDisplayName = user?.displayName ?? user?.providerData?.[0]?.displayName ?? null;
   const isLoading = authLoading || entitlementLoading;
-
-  // Get first letter for avatar - prioritize displayName, then email
-  const getAvatarLetter = () => {
-    if (userDisplayName) return userDisplayName.charAt(0).toUpperCase();
-    if (userEmail) return userEmail.charAt(0).toUpperCase();
-    return '?';
-  };
 
   // Get display text - prioritize displayName, then email, then fallback
   const getDisplayText = () => {
@@ -121,6 +115,7 @@ export const SettingsScreen: React.FC = () => {
   const [hapticEnabled, setHapticEnabled] = useState(true);
   const [showHowTo, setShowHowTo] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
 
   const loadPreferences = useCallback(() => {
     db.getPreference('haptic', 'true').then(v => setHapticEnabled(v === 'true'));
@@ -152,13 +147,16 @@ export const SettingsScreen: React.FC = () => {
 
   const handleSignIn = async () => {
     setIsSigningIn(true);
+    setSignInError(null);
     try {
       const success = await signInWithGoogleAndLink();
       if (success) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Settings] Sign-in error:', error);
+      const message = error?.message ?? 'Sign-in failed. Please try again.';
+      setSignInError(message);
     } finally {
       setIsSigningIn(false);
     }
@@ -178,14 +176,17 @@ export const SettingsScreen: React.FC = () => {
             <>
               <View style={styles.accountInfo}>
                 <View style={[styles.avatar, { backgroundColor: `${theme.onPrimary}30` }]}>
-                  <Text style={[styles.avatarText, { color: theme.onPrimary }]}>
-                    {getAvatarLetter()}
-                  </Text>
+                  <User size={26} color={theme.onPrimary} strokeWidth={2} />
                 </View>
                 <View style={styles.accountText}>
                   <Text style={[styles.emailLabel, { color: theme.onPrimary }]} numberOfLines={1} ellipsizeMode="tail">
                     {getDisplayText()}
                   </Text>
+                  {hasGoogleAccount && userEmail && userDisplayName && (
+                    <Text style={[styles.emailSublabel, { color: `${theme.onPrimary}BB` }]} numberOfLines={1} ellipsizeMode="tail">
+                      {userEmail}
+                    </Text>
+                  )}
                   <View style={styles.statusRow}>
                     <View style={[styles.statusBadge, { backgroundColor: `${theme.onPrimary}25` }]}>
                       <Text style={[styles.statusText, { color: theme.onPrimary }]}>
@@ -235,29 +236,37 @@ export const SettingsScreen: React.FC = () => {
 
         {/* Show Sign-In button only for guest users (anonymous accounts) */}
         {!hasGoogleAccount && !isLoading && (
-          <TouchableOpacity
-            style={[styles.signInCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
-            onPress={handleSignIn}
-            activeOpacity={0.88}
-            disabled={isSigningIn}
-          >
-            <View style={[styles.signInIconWrap, { backgroundColor: theme.successSoft }]}>
-              {isSigningIn ? (
-                <LoaderCircle size={20} color={theme.success} />
-              ) : (
-                <LogIn size={20} color={theme.success} />
-              )}
-            </View>
-            <View style={styles.shareTextWrap}>
-              <Text style={[styles.shareTitle, { color: theme.text }]}>
-                {isSigningIn ? 'Signing in...' : 'Sign in with Google'}
-              </Text>
-              <Text style={[styles.shareSub, { color: theme.textSecondary }]}>
-                Link your account to save your data and sync across devices
-              </Text>
-            </View>
-            <ChevronRight size={18} color={theme.textMuted} />
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[styles.signInCard, { backgroundColor: theme.surface, borderColor: signInError ? theme.danger : theme.border }]}
+              onPress={handleSignIn}
+              activeOpacity={0.88}
+              disabled={isSigningIn}
+            >
+              <View style={[styles.signInIconWrap, { backgroundColor: theme.successSoft }]}>
+                {isSigningIn ? (
+                  <LoaderCircle size={20} color={theme.success} />
+                ) : (
+                  <LogIn size={20} color={theme.success} />
+                )}
+              </View>
+              <View style={styles.shareTextWrap}>
+                <Text style={[styles.shareTitle, { color: theme.text }]}>
+                  {isSigningIn ? 'Signing in...' : 'Sign in with Google'}
+                </Text>
+                <Text style={[styles.shareSub, { color: theme.textSecondary }]}>
+                  Link your account to save your data and sync across devices
+                </Text>
+              </View>
+              <ChevronRight size={18} color={theme.textMuted} />
+            </TouchableOpacity>
+            {signInError && (
+              <View style={[styles.errorCard, { backgroundColor: `${theme.danger}15`, borderColor: `${theme.danger}40` }]}>
+                <AlertCircle size={16} color={theme.danger} />
+                <Text style={[styles.errorText, { color: theme.danger }]}>{signInError}</Text>
+              </View>
+            )}
+          </>
         )}
 
         <Section title="Usage">
@@ -274,16 +283,6 @@ export const SettingsScreen: React.FC = () => {
             label="How to use Sagent"
             sublabel="Quick tips for sharing, copying, editing, and organizing"
             onPress={handleShowHowToUse}
-          />
-        </Section>
-
-        <Section title="Templates">
-          <Row
-            icon={Sparkles}
-            iconColor="#8B5CF6"
-            label="Professional Templates"
-            sublabel="Import ready-made templates for various industries"
-            onPress={() => navigation.navigate('TemplatesLibrary')}
           />
         </Section>
 
@@ -534,6 +533,22 @@ const styles = StyleSheet.create({
   howToItemTitle: { ...textFont('semibold'), fontSize: 15, marginBottom: 4 },
   howToItemDescription: { ...textFont('regular'), fontSize: 13, lineHeight: 19 },
   version: { ...textFont('regular'), textAlign: 'center', fontSize: 13, marginTop: 8 },
+  errorCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: -16,
+    marginBottom: 24,
+  },
+  errorText: {
+    ...textFont('regular'),
+    fontSize: 13,
+    flex: 1,
+    lineHeight: 18,
+  },
   accountInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -558,6 +573,11 @@ const styles = StyleSheet.create({
   emailLabel: {
     ...textFont('bold'),
     fontSize: 16,
+  },
+  emailSublabel: {
+    ...textFont('regular'),
+    fontSize: 13,
+    marginTop: 1,
   },
   statusRow: {
     flexDirection: 'row',
